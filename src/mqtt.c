@@ -34,9 +34,8 @@ uint8_t * get_size(uint8_t * a_input_ptr, uint32_t * a_message_size_ptr);
 /* Debug hex print function */
 void hex_print(uint8_t * a_data_ptr, size_t a_size)
 {
-    for(size_t i = 0; i < a_size; i++){
+    for(size_t i = 0; i < a_size; i++)
         mqtt_printf("0x%02x ", a_data_ptr[i] & 0xff);
-    }
     mqtt_printf("\n");
 }
 
@@ -221,6 +220,66 @@ uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
     return return_ptr;
 }
 
+uint8_t encode_variable_header_connect(uint8_t * a_output_ptr, 
+                                       bool a_clean_session,
+                                       bool a_last_will,
+                                       MQTTQoSLevel_t a_last_will_qos,
+                                       bool a_permanent_last_will,
+                                       bool a_password,
+                                       bool a_username,
+                                       uint16_t a_keepalive)
+{
+
+    uint8_t variable_header_size = 0;
+    if ((NULL != a_output_ptr) &&
+        (QoSInvalid > a_last_will_qos))
+    {
+        MQTT_variable_header_connect_t * header_ptr = (MQTT_variable_header_connect_t*) a_output_ptr;
+        header_ptr->length[0] = 0x00;
+        header_ptr->length[1] = 0x04; /* length of protocol name which is const => length is const */
+        header_ptr->procol_name[0] = 'M';
+        header_ptr->procol_name[1] = 'Q';
+        header_ptr->procol_name[2] = 'T';
+        header_ptr->procol_name[3] = 'T';
+        header_ptr->protocol_version = 0x04; /* 0x04 = 3.1.1 version */
+        header_ptr->keepalive[0] = (a_keepalive >> 8) & 0xFF;
+        header_ptr->keepalive[1] = (a_keepalive >> 0) & 0xFF;
+
+        /* Fill in connection flags */
+        MQTT_variable_header_connect_flags_t * header_flags_ptr = (MQTT_variable_header_connect_flags_t*)&(header_ptr->flags);
+        header_flags_ptr->reserved = 0;
+        header_flags_ptr->clean_session = a_clean_session;
+        header_flags_ptr->last_will = a_last_will;
+        header_flags_ptr->last_will_qos = a_last_will_qos;
+        header_flags_ptr->permanent_will = a_permanent_last_will;
+        header_flags_ptr->password = a_password;
+        header_flags_ptr->username = a_username;
+        variable_header_size = 10; /* fixed size */
+    } else {
+        mqtt_printf("%s %u Invalid argument given %p %x\n",
+                    __FILE__,
+                    __LINE__,
+                    a_output_ptr,
+                    a_last_will_qos);
+    }
+    return variable_header_size;
+}
+
+uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_connection_state_ptr)
+{
+    * a_connection_state_ptr = -1;
+    if (NULL != a_input_ptr)
+    {
+        * a_connection_state_ptr = *(a_input_ptr + 1); /*2nd byte contains return value  */
+    } else {
+        mqtt_printf("%s %u NULL argument given %p\n",
+                    __FILE__,
+                    __LINE__,
+                    a_input_ptr);
+        return NULL;
+    }
+    return a_input_ptr + 2; /* CONNACK is always 2 bytes long. */
+}
 /****************************************************************************************
  * Fixed Header functions                                                               *
  * Encode and decode fixed header functions                                             *
