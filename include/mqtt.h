@@ -34,26 +34,19 @@ typedef enum MQTTQoSLevel
     QoS0 = 0,
     QoS1,
     QoS2,
-    QoSInvalid
+    QoSInvalid  
 }MQTTQoSLevel_t;
 
-typedef enum MQTTDup
-{
-    NoDUP = 0,
-    DUP,
-    DUPInvalid
-}MQTTDup_t;
-
+#pragma pack(1)
 typedef struct struct_flags_and_type
 {
-    uint8_t reserved:1;    /* Unused - set to zero            */
+    uint8_t retain:1;      /* Retain or not                   */
     uint8_t dup:1;         /* one bit value, duplicate or not */
     uint8_t qos:2;         /* Quality of service 0-2          */
     uint8_t message_type:4;
 } struct_flags_and_type_t;
 
 /* FIXED HEADER */
-#pragma pack(1)
 typedef struct MQTT_fixed_header
 {
     struct_flags_and_type_t flagsAndType;
@@ -68,15 +61,17 @@ typedef struct MQTT_fixed_header
  * output buffer.
  *
  * @param output [out] is filled by the function (caller shall allocate and release)
- * @param dup [in] duplicate bit @see MQTTDup_t
+ * @param dup [in] duplicate bit
  * @param qos [in] quality of service value @see MQTTQoSLevel_t
+ * @param retain [in] retain bit
  * @param messageType [in] message type @see MQTTMessageType_t
  * @param msgSize [in] message folowed by the fixed header in bytes
  * @return size of header and 0 in case of failure
  */
 uint8_t encode_fixed_header(MQTT_fixed_header_t * output,
-                            MQTTDup_t dup,
+                            bool dup,
                             MQTTQoSLevel_t qos,
+                            bool retain,
                             MQTTMessageType_t messageType,
                             uint32_t msgSize);
 
@@ -87,18 +82,20 @@ uint8_t encode_fixed_header(MQTT_fixed_header_t * output,
  * this function. Result is stored to pre-allocated
  * output buffer.
  *
- * @param input [in] point to first byte of received MQTT message
- * @param dup [out] duplicate bit @see MQTTDup_t
- * @param qos [out] quality of service value @see MQTTQoSLevel_t
- * @param messageType [out] message type @see MQTTMessageType_t
- * @param msgSize [out] message folowed by the fixed header in bytes
+ * @param a_input_ptr [in] point to first byte of received MQTT message
+ * @param a_dup_ptr [out] duplicate bit
+ * @param a_qos_ptr [out] quality of service value @see MQTTQoSLevel_t
+ * @param a_retain_ptr [out] retain bit
+ * @param a_message_type_ptr [out] message type @see MQTTMessageType_t
+ * @param a_message_size_ptr [out] message folowed by the fixed header in bytes
  * @return pointer to input buffer from where next header starts to. NULL in case of failure.
  */
-uint8_t * decode_fixed_header(uint8_t * input,
-                              MQTTDup_t * dup,
-                              MQTTQoSLevel_t * qos,
-                              MQTTMessageType_t * messageType,
-                              uint32_t * msgSize);
+uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
+                              bool * a_dup_ptr,
+                              MQTTQoSLevel_t * a_qos_ptr,
+                              bool * a_retain_ptr,
+                              MQTTMessageType_t * a_message_type_ptr,
+                              uint32_t * a_message_size_ptr);
 
 /**
  * Debug hex print

@@ -117,7 +117,7 @@ void test_encode_fixed_header_all_zeros()
 {
     /* Thest that fixed header with all zeros is really 0x0000 */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, NoDUP, QoS0, INVALIDCMD, 0x00));
+    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, false, QoS0, false, INVALIDCMD, 0x00));
     TEST_ASSERT_EQUAL_HEX16(0x0000, TO_HEX_16(fHdr));
 }
 
@@ -125,22 +125,15 @@ void test_encode_fixed_header_with_dub_set()
 {
     /* Dup set and value expcted to be 0x0002 */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, DUP, QoS0, INVALIDCMD, 0x00));
+    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, true, QoS0, false, INVALIDCMD, 0x00));
     TEST_ASSERT_EQUAL_HEX16(0x0002, TO_HEX_16(fHdr));
-}
-
-void test_encode_fixed_header_with_invalid_dub_set()
-{
-    /* Dup set to too big - failure expected */
-    MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(0, encode_fixed_header(&fHdr, 2, QoS0, INVALIDCMD, 0x00));
 }
 
 void test_encode_fixed_header_with_qos1()
 {
     /* QoS1 set and value expected to be 0x0004 */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, NoDUP, QoS1, INVALIDCMD, 0x00));
+    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, false, QoS1, false, INVALIDCMD, 0x00));
     TEST_ASSERT_EQUAL_HEX16(0x0004, TO_HEX_16(fHdr));
 }
 
@@ -148,7 +141,7 @@ void test_encode_fixed_header_with_qos2()
 {
     /* QoS2 set and value expected to be 0x0008*/
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, NoDUP, QoS2, INVALIDCMD, 0x00));
+    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, false, QoS2, false, INVALIDCMD, 0x00));
     TEST_ASSERT_EQUAL_HEX16(0x0008, TO_HEX_16(fHdr));
 }
 
@@ -156,14 +149,22 @@ void test_encode_fixed_header_with_invalid_qos()
 {
     /* Try with too big QoS value - fail expected */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(0, encode_fixed_header(&fHdr, NoDUP, 4, INVALIDCMD, 0x00));
+    TEST_ASSERT_EQUAL_INT8(0, encode_fixed_header(&fHdr, false, 4, false, INVALIDCMD, 0x00));
+}
+
+void test_encode_fixed_header_with_retain_set()
+{
+    /* Dup set and value expcted to be 0x0002 */
+    MQTT_fixed_header_t fHdr;
+    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, false, QoS0, true, INVALIDCMD, 0x00));
+    TEST_ASSERT_EQUAL_HEX16(0x0001, TO_HEX_16(fHdr));
 }
 
 void test_encode_fixed_header_with_first_command()
 {
     /* CMD 1 = CONNECT and value is expected to be 0x0010 */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, NoDUP, QoS0, CONNECT, 0x00));
+    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, false, QoS0, false, CONNECT, 0x00));
     TEST_ASSERT_EQUAL_HEX16(0x0010, TO_HEX_16(fHdr));
 }
 
@@ -171,7 +172,7 @@ void test_encode_fixed_header_with_last_command()
 {
     /* CMD 14 = DISCONNECT and value is expected to be 0x00E0 */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, NoDUP, QoS0, DISCONNECT, 0x00));
+    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, false, QoS0, false, DISCONNECT, 0x00));
     TEST_ASSERT_EQUAL_HEX16(0x00E0, TO_HEX_16(fHdr));
 }
 
@@ -179,14 +180,14 @@ void test_encode_fixed_header_with_invalid_command()
 {
     /* Try with reserved command 0xF - fail expected */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(0, encode_fixed_header(&fHdr, NoDUP, QoS0, 0xF, 0x00));
+    TEST_ASSERT_EQUAL_INT8(0, encode_fixed_header(&fHdr, false, QoS0, false, 0xF, 0x00));
 }
 
 void test_encode_fixed_header_with_tiny_message()
 {
     /* tiny message size < 0x80 */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, NoDUP, QoS0, INVALIDCMD, 0x7F));
+    TEST_ASSERT_EQUAL_INT8(2, encode_fixed_header(&fHdr, false, QoS0, false, INVALIDCMD, 0x7F));
     TEST_ASSERT_EQUAL_HEX16(0x7F00, TO_HEX_16(fHdr));
 }
 
@@ -194,7 +195,7 @@ void test_encode_fixed_header_with_small_message()
 {
     /* small message size < 0x8000 */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(3, encode_fixed_header(&fHdr, NoDUP, QoS0, INVALIDCMD, 0x81));
+    TEST_ASSERT_EQUAL_INT8(3, encode_fixed_header(&fHdr, false, QoS0, false, INVALIDCMD, 0x81));
     uint8_t expected[3] = {0x00, 0x81, 0x01};
     TEST_ASSERT_EQUAL_UINT8_ARRAY((void*)&expected, (void*)&fHdr, 3);
 }
@@ -203,7 +204,7 @@ void test_encode_fixed_header_with_big_message()
 {
     /* big message size < 0x800000 */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(4, encode_fixed_header(&fHdr, NoDUP, QoS0, INVALIDCMD, 16386));
+    TEST_ASSERT_EQUAL_INT8(4, encode_fixed_header(&fHdr, false, QoS0, false, INVALIDCMD, 16386));
     uint8_t expected[4] = {0x00, 0x82, 0x80, 0x01};
     TEST_ASSERT_EQUAL_UINT8_ARRAY((void*)&expected, (void*)&fHdr, 4);
 }
@@ -212,7 +213,7 @@ void test_encode_fixed_header_with_large_message()
 {
     /* large message size < 0x80000000 */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(5, encode_fixed_header(&fHdr, NoDUP, QoS0, INVALIDCMD, 268435450));
+    TEST_ASSERT_EQUAL_INT8(5, encode_fixed_header(&fHdr, false, QoS0, false, INVALIDCMD, 268435450));
     uint8_t expected[5] = {0x00, 0xFA, 0xFF, 0xFF, 0x7F};
     TEST_ASSERT_EQUAL_UINT8_ARRAY((void*)&expected, (void*)&fHdr, 5);
 }
@@ -221,7 +222,7 @@ void test_encode_fixed_header_with_too_big_message()
 {
     /* Test wit too big message > 0x80000000 failure expected */
     MQTT_fixed_header_t fHdr;
-    TEST_ASSERT_EQUAL_INT8(0, encode_fixed_header(&fHdr, NoDUP, QoS0, INVALIDCMD, 0x8F12371F));
+    TEST_ASSERT_EQUAL_INT8(0, encode_fixed_header(&fHdr, false, QoS0, false, INVALIDCMD, 0x8F12371F));
 }
 
 /****************************************************************************************
@@ -241,10 +242,10 @@ int main(void)
     
     /* Test fixed header encode */
     RUN_TEST(test_encode_fixed_header_with_dub_set,         tCntr++);
-    RUN_TEST(test_encode_fixed_header_with_invalid_dub_set, tCntr++);
     RUN_TEST(test_encode_fixed_header_with_qos1,            tCntr++);
     RUN_TEST(test_encode_fixed_header_with_qos2,            tCntr++);
     RUN_TEST(test_encode_fixed_header_with_invalid_qos,     tCntr++);
+    RUN_TEST(test_encode_fixed_header_with_retain_set,      tCntr++);
     RUN_TEST(test_encode_fixed_header_with_first_command,   tCntr++);
     RUN_TEST(test_encode_fixed_header_with_last_command,    tCntr++);
     RUN_TEST(test_encode_fixed_header_with_invalid_command, tCntr++);

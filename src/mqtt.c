@@ -113,35 +113,30 @@ uint8_t * get_size(uint8_t * a_input_ptr, uint32_t * a_message_size_ptr)
  * Fixed Header functions                                                               *
  * Encode and decode fixed header functions                                             *
  ****************************************************************************************/
-uint8_t encode_fixed_header(MQTT_fixed_header_t * output,
-                            MQTTDup_t dup,
-                            MQTTQoSLevel_t qos,
+uint8_t encode_fixed_header(MQTT_fixed_header_t * a_output_ptr,
+                            bool a_dup,
+                            MQTTQoSLevel_t a_qos,
+                            bool a_retain,
                             MQTTMessageType_t message_type,
                             uint32_t message_size)
 {
-    if (NULL != output)
+    if (NULL != a_output_ptr)
     {
         /* Test QoS boundaires and store it */
-        if (QoSInvalid > qos) {
-            output->flagsAndType.qos = qos;
+        if (QoSInvalid > a_qos) {
+            a_output_ptr->flagsAndType.qos = a_qos;
         } else {
-            mqtt_printf("%s %u Invalid QoS\n", __FILE__, __LINE__);
+            mqtt_printf("%s %u Invalid QoS %i\n", __FILE__, __LINE__, a_qos);
             return 0;
         }
 
-        /* Test DUP boundaires and store it */
-        if (DUPInvalid > dup) {
-            output->flagsAndType.dup = dup;
-        } else {
-            mqtt_printf("%s %u Invalid DUP\n", __FILE__, __LINE__);
-            return 0;
-        }
+        a_output_ptr->flagsAndType.dup = a_dup;
 
-        output->flagsAndType.reserved = 0;
+        a_output_ptr->flagsAndType.retain = a_retain;
 
         /* Test message type boundaires and store it */
         if (MAXCMD > message_type) {
-            output->flagsAndType.message_type = message_type;
+            a_output_ptr->flagsAndType.message_type = message_type;
         } else {
             mqtt_printf("%s %u Invalid message type %u\n",
                         __FILE__,
@@ -151,17 +146,18 @@ uint8_t encode_fixed_header(MQTT_fixed_header_t * output,
         }
 
         /* Test message size boundaires and store it */
-        uint8_t msgLenSize = set_size(output, message_size);
+        uint8_t msgLenSize = set_size(a_output_ptr, message_size);
         if (msgLenSize > 0)
-            return (set_size(output, message_size) + 1);
+            return (set_size(a_output_ptr, message_size) + 1);
     }
     /* Return failure */
     return 0;
 }
 
 uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
-                              MQTTDup_t * a_dup_ptr,
+                              bool * a_dup_ptr,
                               MQTTQoSLevel_t * a_qos_ptr,
+                              bool * a_retain_ptr,
                               MQTTMessageType_t * a_message_type_ptr,
                               uint32_t * a_message_size_ptr)
 {
@@ -172,16 +168,19 @@ uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
         (NULL != a_dup_ptr) &&
         (NULL != a_qos_ptr) &&
         (NULL != a_message_type_ptr) &&
+        (NULL != a_retain_ptr) &&
         (NULL != a_message_size_ptr))
     {
-        *a_dup_ptr = 0;
+        *a_dup_ptr = false;
         *a_qos_ptr = 0;
         *a_message_type_ptr = 0;
         *a_message_size_ptr = -1;
+        *a_retain_ptr = false;
 
         MQTT_fixed_header_t * input_header = (MQTT_fixed_header_t*)a_input_ptr;
-        MQTTDup_t temp_dup = input_header->flagsAndType.dup;
+        bool temp_dup = input_header->flagsAndType.dup;
         MQTTQoSLevel_t temp_qos = input_header->flagsAndType.qos;
+        bool temp_retain = input_header->flagsAndType.retain;
         MQTTMessageType_t temp_message_type = input_header->flagsAndType.message_type;
 
         /* Destruct size from received message */
@@ -195,23 +194,26 @@ uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
             /* Resut is valid, store parameters into function arguments */
             *a_dup_ptr = temp_dup;
             *a_qos_ptr = temp_qos;
+            *a_retain_ptr = temp_retain;
             *a_message_type_ptr = temp_message_type;
         } else {
-            mqtt_printf("%s %u Invalid argument %x %x %u %x %p\n",
+            mqtt_printf("%s %u Invalid argument %x %x %x %u %x %p\n",
                         __FILE__,
                         __LINE__,
                         temp_dup,
                         temp_qos,
+                        temp_retain,
                         *a_message_size_ptr,
                         temp_message_type,
                         a_input_ptr);
         }
     } else {
-        mqtt_printf("%s %u NULL argument given %p %p %p %p %p\n",
+        mqtt_printf("%s %u NULL argument given %p %p %p %p %p %p\n",
                     __FILE__,
                     __LINE__,
                     a_dup_ptr,
                     a_qos_ptr,
+                    a_retain_ptr,
                     a_message_size_ptr,
                     a_message_type_ptr,
                     a_input_ptr);
