@@ -1,9 +1,14 @@
 #include "mqtt.h"
 #include "unity.h"
 
-/* Test fixed header internal size function - function is not declared in .h */
+/* Functions not declared in mqtt.h - internal functions */
 extern uint8_t * get_size(uint8_t * a_input_ptr, size_t * a_message_size_ptr);
-
+extern uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
+                                     bool * a_dup_ptr,
+                                     MQTTQoSLevel_t * a_qos_ptr,
+                                     bool * a_retain_ptr,
+                                     MQTTMessageType_t * a_message_type_ptr,
+                                     uint32_t * a_message_size_ptr);
 /****************************************************************************************
  * Header size tests                                                                    *
  ****************************************************************************************/
@@ -100,7 +105,7 @@ void test_decode_fixed_header_all_zeros()
     TEST_ASSERT_EQUAL_HEX8(0x00, retain);
 }
 
-void test_encode_fixed_header_with_dub_set()
+void test_decode_fixed_header_with_dub_set()
 {
     uint8_t input[] = {0x02, 0x00, 0x00};
     bool dup = 1;
@@ -116,7 +121,7 @@ void test_encode_fixed_header_with_dub_set()
     TEST_ASSERT_EQUAL_HEX8(0x00, retain);
 }
 
-void test_encode_fixed_header_with_qos1()
+void test_decode_fixed_header_with_qos1()
 {
     uint8_t input[] = {0x04, 0x00, 0x00};
     bool dup = 0;
@@ -132,7 +137,7 @@ void test_encode_fixed_header_with_qos1()
     TEST_ASSERT_EQUAL_HEX8(0x00, retain);
 }
 
-void test_encode_fixed_header_with_qos2()
+void test_decode_fixed_header_with_qos2()
 {
     uint8_t input[] = {0x08, 0x00, 0x00};
     bool dup = 1;
@@ -148,7 +153,7 @@ void test_encode_fixed_header_with_qos2()
     TEST_ASSERT_EQUAL_HEX8(0x00, retain);
 }
 
-void test_encode_fixed_header_with_retain_set()
+void test_decode_fixed_header_with_retain_set()
 {
     uint8_t input[] = {0x01, 0x00, 0x00};
     bool dup = 1;
@@ -164,7 +169,7 @@ void test_encode_fixed_header_with_retain_set()
     TEST_ASSERT_EQUAL_HEX8(0x01, retain);
 }
 
-void test_encode_fixed_header_with_first_command()
+void test_decode_fixed_header_with_first_command()
 {
     uint8_t input[] = {0x10, 0x00, 0x00};
     bool dup = 1;
@@ -180,7 +185,7 @@ void test_encode_fixed_header_with_first_command()
     TEST_ASSERT_EQUAL_HEX8(0x00, retain);
 }
 
-void test_encode_fixed_header_with_last_command()
+void test_decode_fixed_header_with_last_command()
 {
     uint8_t input[] = {0xE0, 0x00, 0x00};
     bool dup = 1;
@@ -297,12 +302,12 @@ int main(void)
 
     /* Fixed header decode tests */
     RUN_TEST(test_decode_fixed_header_all_zeros,             tCntr++);
-    RUN_TEST(test_encode_fixed_header_with_dub_set,          tCntr++);
-    RUN_TEST(test_encode_fixed_header_with_qos1,             tCntr++);
-    RUN_TEST(test_encode_fixed_header_with_qos2,             tCntr++);
-    RUN_TEST(test_encode_fixed_header_with_retain_set,       tCntr++);
-    RUN_TEST(test_encode_fixed_header_with_first_command,    tCntr++);
-    RUN_TEST(test_encode_fixed_header_with_last_command,     tCntr++);
+    RUN_TEST(test_decode_fixed_header_with_dub_set,          tCntr++);
+    RUN_TEST(test_decode_fixed_header_with_qos1,             tCntr++);
+    RUN_TEST(test_decode_fixed_header_with_qos2,             tCntr++);
+    RUN_TEST(test_decode_fixed_header_with_retain_set,       tCntr++);
+    RUN_TEST(test_decode_fixed_header_with_first_command,    tCntr++);
+    RUN_TEST(test_decode_fixed_header_with_last_command,     tCntr++);
     RUN_TEST(test_decode_fixed_header_with_tiny_message,     tCntr++);
     RUN_TEST(test_decode_fixed_header_with_small_message,    tCntr++);
     RUN_TEST(test_decode_fixed_header_with_big_message,      tCntr++);

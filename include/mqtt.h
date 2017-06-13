@@ -110,3 +110,29 @@ void hex_print(uint8_t * a_data_ptr, size_t a_size);
 
 #define mqtt_printf printf
 #endif /* MQTT_H */
+/**
+ * Decode connack from variable header stream.
+ *
+ * Parse out connection status from connak message.
+ *
+ * @param a_message_buffer_ptr [out] allocated working space
+ * @param a_max_buffer_size [in] maximum size of the working space
+ * @param a_socket_desc_ptr [in] socket handler
+ * @param a_connect_ptr [in] connection parameters @see MQTT_connect_t
+ * @param wait_and_parse_response [in] when true, function will wait connak response from the broker and parse it
+ * @return pointer to input buffer from where next header starts to. NULL in case of failure
+ */
+MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr, 
+                              size_t a_max_buffer_size,
+                              int * a_socket_desc_ptr,
+                              MQTT_connect_t * a_connect_ptr,
+                              bool wait_and_parse_response);
+/**
+ * Send MQTT disconnect
+ *
+ * Send out MQTT disconnect to given socket
+ *
+ * @param a_socket_desc_ptr [in] socket handler
+ * @return error code @see MQTTErrorCodes_t 
+ */
+MQTTErrorCodes_t mqtt_disconnect(int * a_socket_desc_ptr);

@@ -1,8 +1,87 @@
 #include "mqtt.h"
+#include <string.h>    // memcpy
+#include<sys/socket.h> // socket send and receive
 
 /****************************************************************************************
  * Local functions declaration                                                          *
  ****************************************************************************************/
+ /**
+ * Construct fixed header from given parameters.
+ *
+ * Fixed header flags, message type and size are set by
+ * this function. Result is stored to pre-allocated
+ * output buffer.
+ *
+ * @param output [out] is filled by the function (caller shall allocate and release)
+ * @param dup [in] duplicate bit
+ * @param qos [in] quality of service value @see MQTTQoSLevel_t
+ * @param retain [in] retain bit
+ * @param messageType [in] message type @see MQTTMessageType_t
+ * @param msgSize [in] message folowed by the fixed header in bytes
+ * @return size of header and 0 in case of failure
+ */
+uint8_t encode_fixed_header(MQTT_fixed_header_t * output,
+                            bool dup,
+                            MQTTQoSLevel_t qos,
+                            bool retain,
+                            MQTTMessageType_t messageType,
+                            uint32_t msgSize);
+
+/**
+ * Decode fixed header from input stream.
+ *
+ * Fixed header flags, message type and size are set by
+ * this function. Result is stored to pre-allocated
+ * output buffer.
+ *
+ * @param a_input_ptr [in] point to first byte of received MQTT message
+ * @param a_dup_ptr [out] duplicate bit
+ * @param a_qos_ptr [out] quality of service value @see MQTTQoSLevel_t
+ * @param a_retain_ptr [out] retain bit
+ * @param a_message_type_ptr [out] message type @see MQTTMessageType_t
+ * @param a_message_size_ptr [out] message folowed by the fixed header in bytes
+ * @return pointer to input buffer from where next header starts to. NULL in case of failure
+ */
+uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
+                              bool * a_dup_ptr,
+                              MQTTQoSLevel_t * a_qos_ptr,
+                              bool * a_retain_ptr,
+                              MQTTMessageType_t * a_message_type_ptr,
+                              uint32_t * a_message_size_ptr);
+
+/**
+ * Construct variable header for connect message
+ *
+ * Fill in all fileds needed to build MQTT connect message.
+ *
+ * @param a_output_ptr [out] preallocated buffer where data is filled
+ * @param a_clean_session [in] clean session bit
+ * @param a_last_will_qos [in] QoS for last will @see MQTTQoSLevel_t
+ * @param a_permanent_last_will [in] is last will permanent
+ * @param a_password [in] payload contains password
+ * @param a_username [in] payoad contains username
+ * @param a_keepalive [in] 16bit keep alive counter
+ * @return length of header = 10 bytes or 0 in case of failure
+ */
+uint8_t encode_variable_header_connect(uint8_t * a_output_ptr, 
+                                       bool a_clean_session,
+                                       bool a_last_will,
+                                       MQTTQoSLevel_t a_last_will_qos,
+                                       bool a_permanent_last_will,
+                                       bool a_password,
+                                       bool a_username,
+                                       uint16_t a_keepalive);
+/**
+ * Decode connack from variable header stream.
+ *
+ * Parse out connection status from connak message.
+ *
+ * @param a_input_ptr [in] point to first byte of received MQTT message
+ * @param a_connection_state_ptr [out] connection state. 0 = successfully connected
+ * @return pointer to input buffer from where next header starts to. NULL in case of failure
+ */
+uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_connection_state_ptr);
+
 /**
  * Set size into fixed header
  *
@@ -47,7 +126,7 @@ void hex_print(uint8_t * a_data_ptr, size_t a_size)
 uint8_t set_size(MQTT_fixed_header_t * a_output_ptr, size_t a_message_size)
 {
     uint8_t return_value = 0;
-    if ((MAX_SUPPORTED_SIZE > a_message_size) && /* Message size in boundaries 0-max */
+    if ((MQTT_MAX_MESSAGE_SIZE > a_message_size) && /* Message size in boundaries 0-max */
         (NULL != a_output_ptr))                  /* Output pointer is not NULL       */
     {
         
@@ -99,7 +178,7 @@ uint8_t * get_size(uint8_t * a_input_ptr, uint32_t * a_message_size_ptr)
     } while ((aByte & 128) != 0);
 
     /* Verify that size is supported by applicaiton */
-    if (MAX_SUPPORTED_SIZE < value) {
+    if (MQTT_MAX_MESSAGE_SIZE < value) {
         mqtt_printf("%s %u Size is too big %u\n", __FILE__, __LINE__, value); 
         return NULL;
     }
@@ -280,7 +359,195 @@ uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_conne
     }
     return a_input_ptr + 2; /* CONNACK is always 2 bytes long. */
 }
+
+uint8_t * mqtt_add_payload_parameters(uint8_t * a_output_ptr, uint16_t a_length, uint8_t * a_parameter_ptr)
+{
+    /* Payload parameters conists of 2 byte length followed by parameter */
+    * a_output_ptr = (a_length >> 8) & 0xFF;
+    a_output_ptr++;
+    * a_output_ptr = (a_length >> 0) & 0xFF;
+    a_output_ptr++;
+    memcpy(a_output_ptr, a_parameter_ptr, a_length);
+    return a_output_ptr + a_length;
+}
+
+uint8_t * mqtt_connect_fill(uint8_t * a_message_buffer_ptr,
+                            size_t a_max_buffer_size,
+                            MQTT_connect_t * a_connect_ptr,
+                            uint16_t * a_ouput_size_ptr)
+{
+    uint8_t sizeOfVarHdr, sizeOfFixedHdr = 0;
+
+    /* Clear message buffer */
+    memset(a_message_buffer_ptr, 0, sizeof(a_max_buffer_size));
+    
+    uint8_t * payload_ptr = a_message_buffer_ptr + sizeof(MQTT_fixed_header_t) + sizeof(MQTT_variable_header_connect_t);
+    
+    /* Fill client ID into payload. It must exists and it must be first parameter */
+    if ((0 < strlen(a_connect_ptr->client_id)) &&
+        (MQTT_CLIENT_ID_SIZE > strlen(a_connect_ptr->client_id))) {
+
+        payload_ptr = mqtt_add_payload_parameters(payload_ptr, 
+                                                  strlen(a_connect_ptr->client_id), 
+                                                  a_connect_ptr->client_id);
+
+    } else {
+        * a_ouput_size_ptr = 0;
+        return NULL;
+    }
+
+    /* Add Last Will topic and message to the payload, if present */
+    if ((0 < strlen(a_connect_ptr->last_will_topic)) &&
+        (MQTT_CONNECT_LAST_WILL_TOPIC_SIZE > strlen(a_connect_ptr->last_will_topic)) &&
+        (0 < strlen(a_connect_ptr->last_will_message)) &&
+        (MQTT_CONNECT_LAST_WILL_MESSAGE_SIZE > strlen(a_connect_ptr->last_will_message))) {
+
+        a_connect_ptr->connect_flags.last_will = true;
+
+        payload_ptr = mqtt_add_payload_parameters(payload_ptr,
+                                                  strlen(a_connect_ptr->last_will_topic), 
+                                                  a_connect_ptr->last_will_topic);
+
+        payload_ptr = mqtt_add_payload_parameters(payload_ptr, 
+                                                  strlen(a_connect_ptr->last_will_message), 
+                                                  a_connect_ptr->last_will_message);
+    } else {
+        a_connect_ptr->connect_flags.last_will = false;
+        a_connect_ptr->connect_flags.last_will_qos = QoS0;
+    }
+
+    /* Add username to the payload, if present */
+    if ((0 < strlen(a_connect_ptr->username)) &&
+        (MQTT_USERNAME_SIZE > strlen(a_connect_ptr->username))) {
+
+        a_connect_ptr->connect_flags.username = true;
+
+        payload_ptr = mqtt_add_payload_parameters(payload_ptr, 
+                                                  strlen(a_connect_ptr->username), 
+                                                  a_connect_ptr->username);
+    } else {
+        a_connect_ptr->connect_flags.username = false;
+    }
+
+    /* Add password to the payload, if present */
+    if ((0 < strlen(a_connect_ptr->password)) &&
+        (MQTT_PASSWORD_SIZE > strlen(a_connect_ptr->password))) {
+
+        a_connect_ptr->connect_flags.password = true;
+
+        payload_ptr = mqtt_add_payload_parameters(payload_ptr, 
+                                                  strlen(a_connect_ptr->password), 
+                                                  a_connect_ptr->password);
+    } else {
+        a_connect_ptr->connect_flags.password = false;
+    }
+
+    /* Construct variable header with given parameters */
+    sizeOfVarHdr = encode_variable_header_connect(a_message_buffer_ptr + sizeof(MQTT_fixed_header_t),
+                                                  a_connect_ptr->connect_flags.clean_session,
+                                                  a_connect_ptr->connect_flags.last_will,
+                                                  a_connect_ptr->connect_flags.last_will_qos,
+                                                  a_connect_ptr->connect_flags.permanent_will,
+                                                  a_connect_ptr->connect_flags.password,
+                                                  a_connect_ptr->connect_flags.username,
+                                                  a_connect_ptr->keepalive);
+
+    uint32_t payloadSize = payload_ptr - (a_message_buffer_ptr + sizeof(MQTT_fixed_header_t) + sizeof(MQTT_variable_header_connect_t));
+
+    MQTT_fixed_header_t temporaryFixedHeader;
+    /* Form fixed header for CONNECT msg */
+    sizeOfFixedHdr = encode_fixed_header(&temporaryFixedHeader,
+                                         false,
+                                         QoS0,
+                                         false,
+                                         CONNECT,
+                                         payloadSize + sizeOfVarHdr);
+
+    /* Count valid starting point for the message, because fixed header length variates between 2 to 4 bytes */
+    uint8_t * message_ptr = a_message_buffer_ptr + (sizeof(MQTT_fixed_header_t) - sizeOfFixedHdr);
+
+    /* Copy fixed header at the beginning of the message */
+    memcpy((void*)message_ptr, (void*)&temporaryFixedHeader, sizeOfFixedHdr);
+
+    * a_ouput_size_ptr = (payload_ptr - message_ptr);
+
+    return message_ptr;
+}
+
+MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr)
+{
+    uint8_t connection_state = InvalidArgument;
+    bool dup, retain;
+    MQTTQoSLevel_t qos;
+    MQTTMessageType_t type;
+    uint32_t size;
+    // Decode fixed header
+    uint8_t * nextHdr = decode_fixed_header(a_message_in_ptr, &dup, &qos, &retain, &type, &size);
+    if ((NULL != nextHdr) &&
+        (CONNACK == type)) {
+        // Decode variable header
+        decode_variable_header_conack(nextHdr, &connection_state);
+    }
+    return connection_state;
+}
+
 /****************************************************************************************
- * Fixed Header functions                                                               *
- * Encode and decode fixed header functions                                             *
+ * MQTT CONNECT                                                                         *
  ****************************************************************************************/
+MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr,
+                              size_t a_max_buffer_size,
+                              int * a_socket_desc_ptr,
+                              MQTT_connect_t * a_connect_ptr,
+                              bool wait_and_parse_response)
+{
+    /* Ensure that pointers are valid */
+    if ((NULL != a_socket_desc_ptr) &&
+        (0 < *a_socket_desc_ptr)) {
+        
+        if ((NULL != a_message_buffer_ptr) &&
+            (NULL != a_connect_ptr)) {
+            uint16_t msg_size = 0;
+            uint8_t * msg_ptr = mqtt_connect_fill(a_message_buffer_ptr,
+                                                  a_max_buffer_size,
+                                                  a_connect_ptr,
+                                                  &msg_size);
+            if (NULL != msg_ptr) {
+                // Send CONNECT message to the broker using given socket without flags
+                if (send(*a_socket_desc_ptr, msg_ptr, msg_size, 0) == msg_size)
+                {
+                    if (wait_and_parse_response)
+                    {
+                        // Wait response from borker
+                        int rcv = recv(*a_socket_desc_ptr, a_message_buffer_ptr , sizeof(MQTT_fixed_header_t) , 0);
+                        if (0 < rcv) {
+                            return mqtt_connect_parse_ack(a_message_buffer_ptr);
+                        } else
+                        {
+                            return ServerUnavailabe;
+                        }
+                    } else {
+                        return Successfull;
+                    }
+                } else {
+                    return ServerUnavailabe;
+                }
+            }   
+        }
+    }
+    return InvalidArgument;
+}
+
+MQTTErrorCodes_t mqtt_disconnect( int * a_socket_desc_ptr)
+{
+    
+    if (NULL != a_socket_desc_ptr) {
+        // Form and send fixed header with DISCONNECT command ID
+        MQTT_fixed_header_t temporaryBuffer;
+        uint8_t sizeOfFixedHdr = encode_fixed_header(&temporaryBuffer, false, QoS0, false, DISCONNECT, 0);
+        if (send(*a_socket_desc_ptr, &temporaryBuffer, sizeOfFixedHdr, 0) == sizeOfFixedHdr)
+            return Successfull;
+        else
+            return ServerUnavailabe;
+    }
+    return InvalidArgument;
+}

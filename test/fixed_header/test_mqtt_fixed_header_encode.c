@@ -3,8 +3,14 @@
 
 #define TO_HEX_16(_a_) (*(uint16_t*)&_a_)
 
-/* Test fixed header internal size function - function is not declared in .h */
+/* Functions not declared in mqtt.h - internal functions */
 extern uint8_t set_size(MQTT_fixed_header_t * a_output_ptr, size_t a_message_size);
+extern uint8_t encode_fixed_header(MQTT_fixed_header_t * output,
+                                   bool dup,
+                                   MQTTQoSLevel_t qos,
+                                   bool retain,
+                                   MQTTMessageType_t messageType,
+                                   uint32_t msgSize);
 
 /****************************************************************************************
  * Header size tests                                                                    *
