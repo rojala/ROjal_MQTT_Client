@@ -106,6 +106,10 @@ uint8_t set_size(MQTT_fixed_header_t * a_output_ptr, size_t a_message_size);
  */
 uint8_t * get_size(uint8_t * a_input_ptr, uint32_t * a_message_size_ptr);
 
+
+MQTTErrorCodes_t mqtt_ping_req( int * a_socket_desc_ptr);
+MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr);
+
 /****************************************************************************************
  * Test and debug functions                                                             *
  ****************************************************************************************/
@@ -477,18 +481,38 @@ uint8_t * mqtt_connect_fill(uint8_t * a_message_buffer_ptr,
 MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr)
 {
     uint8_t connection_state = InvalidArgument;
-    bool dup, retain;
-    MQTTQoSLevel_t qos;
-    MQTTMessageType_t type;
-    uint32_t size;
-    // Decode fixed header
-    uint8_t * nextHdr = decode_fixed_header(a_message_in_ptr, &dup, &qos, &retain, &type, &size);
-    if ((NULL != nextHdr) &&
-        (CONNACK == type)) {
-        // Decode variable header
-        decode_variable_header_conack(nextHdr, &connection_state);
+    if (NULL != a_message_in_ptr) {
+        bool dup, retain;
+        MQTTQoSLevel_t qos;
+        MQTTMessageType_t type;
+        uint32_t size;
+        // Decode fixed header
+        uint8_t * nextHdr = decode_fixed_header(a_message_in_ptr, &dup, &qos, &retain, &type, &size);
+        if ((NULL != nextHdr) &&
+            (CONNACK == type)) {
+            // Decode variable header
+            decode_variable_header_conack(nextHdr, &connection_state);
+        }
     }
     return connection_state;
+}
+
+MQTTErrorCodes_t mqtt_parse_ping_ack(uint8_t * a_message_in_ptr)
+{
+    if (NULL != a_message_in_ptr) {
+        bool dup, retain;
+        MQTTQoSLevel_t qos;
+        MQTTMessageType_t type;
+        uint32_t size;
+        // Decode fixed header
+        uint8_t * nextHdr = decode_fixed_header(a_message_in_ptr, &dup, &qos, &retain, &type, &size);
+        if ((NULL != nextHdr) &&
+            (PINGRESP == type)) {
+            // Decode variable header
+            return Successfull;
+        }
+    }
+    return ServerUnavailabe;
 }
 
 /****************************************************************************************
@@ -538,12 +562,25 @@ MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr,
 }
 
 MQTTErrorCodes_t mqtt_disconnect( int * a_socket_desc_ptr)
-{
-    
+{   
     if (NULL != a_socket_desc_ptr) {
         // Form and send fixed header with DISCONNECT command ID
         MQTT_fixed_header_t temporaryBuffer;
         uint8_t sizeOfFixedHdr = encode_fixed_header(&temporaryBuffer, false, QoS0, false, DISCONNECT, 0);
+        if (send(*a_socket_desc_ptr, &temporaryBuffer, sizeOfFixedHdr, 0) == sizeOfFixedHdr)
+            return Successfull;
+        else
+            return ServerUnavailabe;
+    }
+    return InvalidArgument;
+}
+
+MQTTErrorCodes_t mqtt_ping_req( int * a_socket_desc_ptr)
+{
+    if (NULL != a_socket_desc_ptr) {
+        // Form and send fixed header with PINGREQ command ID
+        MQTT_fixed_header_t temporaryBuffer;
+        uint8_t sizeOfFixedHdr = encode_fixed_header(&temporaryBuffer, false, QoS0, false, PINGREQ, 0);
         if (send(*a_socket_desc_ptr, &temporaryBuffer, sizeOfFixedHdr, 0) == sizeOfFixedHdr)
             return Successfull;
         else

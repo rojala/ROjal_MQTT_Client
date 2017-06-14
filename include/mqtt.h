@@ -1,5 +1,5 @@
 // FIXED HEADER TO OWN HDR FILE ?
-// Keep mqtt.h which would include mqtt_fixed_header.h, variable_header.h and pyaload.h
+
 #ifndef MQTT_H
 #define MQTT_H
 #include <stdint.h>  // uint
@@ -7,13 +7,18 @@
 #include <stdbool.h> // bool
 #include <stdio.h>   // printf
 
-#define MAX_SUPPORTED_SIZE (0x80000000 - 1)
+#define MQTT_MAX_MESSAGE_SIZE                   (0x80000000 - 1)
+#define MQTT_CONNECT_LAST_WILL_TOPIC_SIZE       256
+#define MQTT_CONNECT_LAST_WILL_MESSAGE_SIZE     128
+#define MQTT_USERNAME_SIZE                      32
+#define MQTT_PASSWORD_SIZE                      32
+#define MQTT_CLIENT_ID_SIZE                     24
 
 typedef enum MQTTMessageType
 {
     INVALIDCMD = 0,
     CONNECT = 1,
-    CONNACT,
+    CONNACK,
     PUBLISH,
     PUBACK,
     PUBREC,
@@ -27,7 +32,18 @@ typedef enum MQTTMessageType
     PINGRESP,
     DISCONNECT,
     MAXCMD
-}MQTTMessageType_t;
+} MQTTMessageType_t;
+
+typedef enum MQTTErrorCodes
+{
+    InvalidArgument = -64,
+    Successfull = 0,
+    InvalidVersion = 1,
+    InvalidIdentifier,
+    ServerUnavailabe,
+    BadUsernameOrPassword,
+    NotAuthorized
+} MQTTErrorCodes_t;
 
 typedef enum MQTTQoSLevel
 {
@@ -40,10 +56,10 @@ typedef enum MQTTQoSLevel
 #pragma pack(1)
 typedef struct struct_flags_and_type
 {
-    uint8_t retain:1;      /* Retain or not                   */
-    uint8_t dup:1;         /* one bit value, duplicate or not */
-    uint8_t qos:2;         /* Quality of service 0-2          */
-    uint8_t message_type:4;
+    uint8_t retain:1;      /* Retain or not                            */
+    uint8_t dup:1;         /* one bit value, duplicate or not          */
+    uint8_t qos:2;         /* Quality of service 0-2 @see MQTTQoSLevel */
+    uint8_t message_type:4;/* @see MQTTMessageType                     */
 } struct_flags_and_type_t;
 
 /* FIXED HEADER */
@@ -53,49 +69,38 @@ typedef struct MQTT_fixed_header
     uint8_t length[4];
 } MQTT_fixed_header_t;
 
-/**
- * Construct fixed header from given parameters.
- *
- * Fixed header flags, message type and size are set by
- * this function. Result is stored to pre-allocated
- * output buffer.
- *
- * @param output [out] is filled by the function (caller shall allocate and release)
- * @param dup [in] duplicate bit
- * @param qos [in] quality of service value @see MQTTQoSLevel_t
- * @param retain [in] retain bit
- * @param messageType [in] message type @see MQTTMessageType_t
- * @param msgSize [in] message folowed by the fixed header in bytes
- * @return size of header and 0 in case of failure
- */
-uint8_t encode_fixed_header(MQTT_fixed_header_t * output,
-                            bool dup,
-                            MQTTQoSLevel_t qos,
-                            bool retain,
-                            MQTTMessageType_t messageType,
-                            uint32_t msgSize);
+/* Variable headers */
+typedef struct MQTT_variable_header_connect_flags
+{
+    uint8_t reserved:1;
+    uint8_t clean_session:1;
+    uint8_t last_will:1;
+    uint8_t last_will_qos:2;
+    uint8_t permanent_will:1;
+    uint8_t password:1;
+    uint8_t username:1;
+} MQTT_variable_header_connect_flags_t;
 
-/**
- * Decode fixed header from input stream.
- *
- * Fixed header flags, message type and size are set by
- * this function. Result is stored to pre-allocated
- * output buffer.
- *
- * @param a_input_ptr [in] point to first byte of received MQTT message
- * @param a_dup_ptr [out] duplicate bit
- * @param a_qos_ptr [out] quality of service value @see MQTTQoSLevel_t
- * @param a_retain_ptr [out] retain bit
- * @param a_message_type_ptr [out] message type @see MQTTMessageType_t
- * @param a_message_size_ptr [out] message folowed by the fixed header in bytes
- * @return pointer to input buffer from where next header starts to. NULL in case of failure.
- */
-uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
-                              bool * a_dup_ptr,
-                              MQTTQoSLevel_t * a_qos_ptr,
-                              bool * a_retain_ptr,
-                              MQTTMessageType_t * a_message_type_ptr,
-                              uint32_t * a_message_size_ptr);
+typedef struct MQTT_variable_header_connect
+{
+    uint8_t length[2];        /* In practise fixed to 4                    */
+    uint8_t procol_name[4];   /* "MQTT" - string without null              */
+    uint8_t protocol_version; /* Fixed to 3.1.1 = 0x04                     */
+    uint8_t flags;            /* @see MQTT_variable_header_connect_flags_t */
+    uint8_t keepalive[2];     /* Keepaive timer for the connection         */
+} MQTT_variable_header_connect_t;
+
+typedef struct MQTT_connect
+{
+    MQTT_fixed_header_t fixed_header;
+    MQTT_variable_header_connect_flags_t connect_flags;
+    uint16_t keepalive;
+    uint8_t last_will_topic[MQTT_CONNECT_LAST_WILL_TOPIC_SIZE];
+    uint8_t last_will_message[MQTT_CONNECT_LAST_WILL_MESSAGE_SIZE];
+    uint8_t username[MQTT_USERNAME_SIZE];
+    uint8_t password[MQTT_PASSWORD_SIZE];
+    uint8_t client_id[MQTT_CLIENT_ID_SIZE];
+} MQTT_connect_t;
 
 /**
  * Debug hex print

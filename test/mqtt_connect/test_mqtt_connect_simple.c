@@ -33,6 +33,9 @@ extern uint8_t encode_variable_header_connect(uint8_t * a_output_ptr,
 
 extern uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_connection_state_ptr);
 
+extern MQTTErrorCodes_t mqtt_ping_req( int * a_socket_desc_ptr);
+extern MQTTErrorCodes_t mqtt_parse_ping_ack(uint8_t * a_message_in_ptr);
+
 char buffer[1024*256];
 
 #define MQTT_PORT 1883
@@ -128,6 +131,8 @@ void test_mqtt_connect_simple_hack()
     // Close socket
     close(socket_desc);
 }
+
+
 
 void test_mqtt_connect_simple()
 {
@@ -227,6 +232,103 @@ void test_mqtt_connect_simple_all_details()
     // Close socket
     close(socket_desc);
 }
+
+void test_mqtt_connect_simple_keepalive()
+{
+    // Connect to broker with socket
+    int socket_desc = open_mqtt_socket();
+    TEST_ASSERT_TRUE_MESSAGE(socket_desc >= 0, "MQTT Broker not running?");
+
+    uint8_t mqtt_raw_buffer[256];
+    MQTT_connect_t connect_params;
+    
+    sprintf((char*)(connect_params.client_id), "JAMKtest");
+    
+    connect_params.last_will_topic[0] = '\0';
+    connect_params.last_will_message[0] = '\0';
+    connect_params.username[0] = '\0';
+    connect_params.password[0] = '\0';
+    connect_params.keepalive = 2;
+    connect_params.connect_flags.clean_session = true;
+    MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
+                                        sizeof(mqtt_raw_buffer),
+                                        &socket_desc,
+                                        &connect_params,
+                                        true);
+
+    TEST_ASSERT_FALSE_MESSAGE(ret != 0, "MQTT Connect failed");
+
+    for (uint8_t i=0; i<4; i++) {
+        uint8_t mqtt_raw_buffer[64];
+        sleep(1);
+        // MQTT PING REQ
+        TEST_ASSERT_TRUE(mqtt_ping_req(&socket_desc) == Successfull);
+
+        // Wait PINGRESP from borker
+        int rcv = recv(socket_desc, mqtt_raw_buffer , 2000 , 0);
+        TEST_ASSERT_FALSE_MESSAGE(rcv < 0,  "Receive failed with error");
+        TEST_ASSERT_FALSE_MESSAGE(rcv == 0, "No data received");
+        TEST_ASSERT_EQUAL(Successfull, mqtt_parse_ping_ack(mqtt_raw_buffer));
+    }
+
+    // MQTT disconnect
+    TEST_ASSERT_TRUE(mqtt_ping_req(&socket_desc) == Successfull);
+
+    // MQTT disconnect
+    TEST_ASSERT_TRUE(mqtt_disconnect(&socket_desc) == Successfull);
+
+    // Close socket
+    close(socket_desc);
+}
+
+
+void test_mqtt_connect_simple_keepalive_timeout()
+{
+    // Connect to broker with socket
+    int socket_desc = open_mqtt_socket();
+    TEST_ASSERT_TRUE_MESSAGE(socket_desc >= 0, "MQTT Broker not running?");
+
+    uint8_t mqtt_raw_buffer[256];
+    MQTT_connect_t connect_params;
+    
+    sprintf((char*)(connect_params.client_id), "JAMKtest");
+    
+    connect_params.last_will_topic[0] = '\0';
+    connect_params.last_will_message[0] = '\0';
+    connect_params.username[0] = '\0';
+    connect_params.password[0] = '\0';
+    connect_params.keepalive = 2;
+    connect_params.connect_flags.clean_session = true;
+    MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
+                                        sizeof(mqtt_raw_buffer),
+                                        &socket_desc,
+                                        &connect_params,
+                                        true);
+
+    TEST_ASSERT_FALSE_MESSAGE(ret != 0, "MQTT Connect failed");
+
+    for (uint8_t i=0; i<2; i++) {
+        uint8_t mqtt_raw_buffer[64];
+        sleep(1+(i*2));
+        // MQTT PING REQ
+        TEST_ASSERT_TRUE(mqtt_ping_req(&socket_desc) == Successfull);
+
+        // Wait PINGRESP from borker
+        int rcv = recv(socket_desc, mqtt_raw_buffer , 2000 , 0);
+        TEST_ASSERT_FALSE_MESSAGE(rcv < 0,  "Receive failed with error");
+        if (i == 0) {
+            TEST_ASSERT_FALSE_MESSAGE(rcv == 0, "No data received");
+            TEST_ASSERT_EQUAL(Successfull, mqtt_parse_ping_ack(mqtt_raw_buffer));
+        } else {
+            TEST_ASSERT_TRUE_MESSAGE(rcv == 0, "Data received??");
+        }
+    }
+
+    // Close socket
+    close(socket_desc);
+}
+
+
 /****************************************************************************************
  * TEST main                                                                            *
  ****************************************************************************************/
@@ -241,6 +343,8 @@ int main(void)
     RUN_TEST(test_mqtt_connect_simple,                          tCntr++);
     RUN_TEST(test_mqtt_connect_simple_username_and_password,    tCntr++);
     RUN_TEST(test_mqtt_connect_simple_all_details,              tCntr++);
+    RUN_TEST(test_mqtt_connect_simple_keepalive,                tCntr++);
+    RUN_TEST(test_mqtt_connect_simple_keepalive_timeout,        tCntr++);
 
     return (UnityEnd());
 }
