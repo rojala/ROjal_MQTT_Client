@@ -33,18 +33,16 @@ extern uint8_t encode_variable_header_connect(uint8_t * a_output_ptr,
 
 extern uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_connection_state_ptr);
 
-extern MQTTErrorCodes_t mqtt_ping_req( int * a_socket_desc_ptr);
-extern MQTTErrorCodes_t mqtt_parse_ping_ack(uint8_t * a_message_in_ptr);
+MQTTErrorCodes_t mqtt_ping_req(data_stream_out_fptr_t a_out_fptr);
+//MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr);
+MQTTErrorCodes_t mqtt_parse_ping_ack(uint8_t * a_message_in_ptr);
 
 char buffer[1024*256];
 
 #define MQTT_PORT 1883
-#ifdef MQTT_SERVER
 
-#else
-#define MQTT_SERVER "192.168.0.201"
-#endif
- 
+static int g_socket_desc = -1;
+
 int open_mqtt_socket()
 {
     int socket_desc;
@@ -72,6 +70,35 @@ int open_mqtt_socket()
 
     return socket_desc;
 }
+
+int data_stream_in_fptr(uint8_t * a_data_ptr, size_t a_amount)
+{
+    if (g_socket_desc <= 0)
+        g_socket_desc = open_mqtt_socket();
+
+    if (g_socket_desc > 0) {
+        int ret = recv(g_socket_desc, a_data_ptr, a_amount, 0);
+        printf("Socket in  -> %iB\n", ret);
+        return ret;
+    } else {
+        return -1;
+    }
+}
+
+int data_stream_out_fptr(uint8_t * a_data_ptr, size_t a_amount)
+{
+    if (g_socket_desc <= 0)
+        g_socket_desc = open_mqtt_socket();
+
+    if (g_socket_desc > 0) {
+        int ret = send(g_socket_desc, a_data_ptr, a_amount, 0);
+        printf("Socket out -> %iB\n", ret);
+        return ret;
+    } else {
+        return -1;
+    }
+}
+
 
 void test_mqtt_socket()
 {
@@ -132,13 +159,11 @@ void test_mqtt_connect_simple_hack()
     close(socket_desc);
 }
 
-
-
 void test_mqtt_connect_simple()
 {
     // Connect to broker with socket
-    int socket_desc = open_mqtt_socket();
-    TEST_ASSERT_TRUE_MESSAGE(socket_desc >= 0, "MQTT Broker not running?");
+    g_socket_desc = open_mqtt_socket();
+    TEST_ASSERT_TRUE_MESSAGE(g_socket_desc >= 0, "MQTT Broker not running?");
 
     uint8_t mqtt_raw_buffer[256];
     MQTT_connect_t connect_params;
@@ -153,25 +178,27 @@ void test_mqtt_connect_simple()
     connect_params.connect_flags.clean_session = true;
     MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
-                                        &socket_desc,
+                                        &data_stream_in_fptr,
+                                        &data_stream_out_fptr,
                                         &connect_params,
                                         true);
 
-    TEST_ASSERT_FALSE_MESSAGE(ret != 0, "MQTT Connect failed");
+    TEST_ASSERT_EQUAL_MESSAGE(0, ret, "MQTT Connect failed");
 
     // Form and send fixed header with DISCONNECT command ID
     uint8_t sizeOfFixedHdr = encode_fixed_header((MQTT_fixed_header_t*)&mqtt_raw_buffer, false, QoS0, false, DISCONNECT, 0);
-    TEST_ASSERT_FALSE_MESSAGE(send(socket_desc, mqtt_raw_buffer, sizeOfFixedHdr, 0) < 0, "Send failed");
+    TEST_ASSERT_FALSE_MESSAGE(send(g_socket_desc, mqtt_raw_buffer, sizeOfFixedHdr, 0) < 0, "Send failed");
 
     // Close socket
-    close(socket_desc);
+    close(g_socket_desc);
+    g_socket_desc = -1;
 }
 
 void test_mqtt_connect_simple_username_and_password()
 {
     // Connect to broker with socket
-    int socket_desc = open_mqtt_socket();
-    TEST_ASSERT_TRUE_MESSAGE(socket_desc >= 0, "MQTT Broker not running?");
+    g_socket_desc = open_mqtt_socket();
+    TEST_ASSERT_TRUE_MESSAGE(g_socket_desc >= 0, "MQTT Broker not running?");
 
     uint8_t mqtt_raw_buffer[256];
     MQTT_connect_t connect_params;
@@ -187,7 +214,8 @@ void test_mqtt_connect_simple_username_and_password()
     connect_params.connect_flags.permanent_will = false;
     MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
-                                        &socket_desc,
+                                        &data_stream_in_fptr,
+                                        &data_stream_out_fptr,
                                         &connect_params,
                                         true);
 
@@ -195,17 +223,18 @@ void test_mqtt_connect_simple_username_and_password()
 
     // Form and send fixed header with DISCONNECT command ID
     uint8_t sizeOfFixedHdr = encode_fixed_header((MQTT_fixed_header_t*)&mqtt_raw_buffer, false, QoS0, false, DISCONNECT, 0);
-    TEST_ASSERT_FALSE_MESSAGE(send(socket_desc, mqtt_raw_buffer, sizeOfFixedHdr, 0) < 0, "Send failed");
+    TEST_ASSERT_FALSE_MESSAGE(send(g_socket_desc, mqtt_raw_buffer, sizeOfFixedHdr, 0) < 0, "Send failed");
 
     // Close socket
-    close(socket_desc);
+    close(g_socket_desc);
+    g_socket_desc = -1;
 }
 
 void test_mqtt_connect_simple_all_details()
 {
     // Connect to broker with socket
-    int socket_desc = open_mqtt_socket();
-    TEST_ASSERT_TRUE_MESSAGE(socket_desc >= 0, "MQTT Broker not running?");
+    g_socket_desc = open_mqtt_socket();
+    TEST_ASSERT_TRUE_MESSAGE(g_socket_desc >= 0, "MQTT Broker not running?");
 
     uint8_t mqtt_raw_buffer[256];
     MQTT_connect_t connect_params;
@@ -220,24 +249,26 @@ void test_mqtt_connect_simple_all_details()
     connect_params.connect_flags.permanent_will = false;
     MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
-                                        &socket_desc,
+                                        &data_stream_in_fptr,
+                                        &data_stream_out_fptr,
                                         &connect_params,
                                         true);
 
     TEST_ASSERT_FALSE_MESSAGE(ret != 0, "MQTT Connect failed");
 
     // MQTT disconnect
-    TEST_ASSERT_TRUE(mqtt_disconnect(&socket_desc) == Successfull);
+    TEST_ASSERT_TRUE(mqtt_disconnect(&data_stream_out_fptr) == Successfull);
 
     // Close socket
-    close(socket_desc);
+    close(g_socket_desc);
+    g_socket_desc = -1;
 }
 
 void test_mqtt_connect_simple_keepalive()
 {
     // Connect to broker with socket
-    int socket_desc = open_mqtt_socket();
-    TEST_ASSERT_TRUE_MESSAGE(socket_desc >= 0, "MQTT Broker not running?");
+    g_socket_desc = open_mqtt_socket();
+    TEST_ASSERT_TRUE_MESSAGE(g_socket_desc >= 0, "MQTT Broker not running?");
 
     uint8_t mqtt_raw_buffer[256];
     MQTT_connect_t connect_params;
@@ -252,7 +283,8 @@ void test_mqtt_connect_simple_keepalive()
     connect_params.connect_flags.clean_session = true;
     MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
-                                        &socket_desc,
+                                        &data_stream_in_fptr,
+                                        &data_stream_out_fptr,
                                         &connect_params,
                                         true);
 
@@ -262,31 +294,29 @@ void test_mqtt_connect_simple_keepalive()
         uint8_t mqtt_raw_buffer[64];
         sleep(1);
         // MQTT PING REQ
-        TEST_ASSERT_TRUE(mqtt_ping_req(&socket_desc) == Successfull);
+        TEST_ASSERT_TRUE(mqtt_ping_req(&data_stream_out_fptr) == Successfull);
 
         // Wait PINGRESP from borker
-        int rcv = recv(socket_desc, mqtt_raw_buffer , 2000 , 0);
+        int rcv = recv(g_socket_desc, mqtt_raw_buffer , 2000 , 0);
         TEST_ASSERT_FALSE_MESSAGE(rcv < 0,  "Receive failed with error");
         TEST_ASSERT_FALSE_MESSAGE(rcv == 0, "No data received");
         TEST_ASSERT_EQUAL(Successfull, mqtt_parse_ping_ack(mqtt_raw_buffer));
     }
 
     // MQTT disconnect
-    TEST_ASSERT_TRUE(mqtt_ping_req(&socket_desc) == Successfull);
-
-    // MQTT disconnect
-    TEST_ASSERT_TRUE(mqtt_disconnect(&socket_desc) == Successfull);
+    TEST_ASSERT_TRUE(mqtt_disconnect(&data_stream_out_fptr) == Successfull);
 
     // Close socket
-    close(socket_desc);
+    close(g_socket_desc);
+    g_socket_desc = -1;
 }
 
 
 void test_mqtt_connect_simple_keepalive_timeout()
 {
     // Connect to broker with socket
-    int socket_desc = open_mqtt_socket();
-    TEST_ASSERT_TRUE_MESSAGE(socket_desc >= 0, "MQTT Broker not running?");
+    g_socket_desc = open_mqtt_socket();
+    TEST_ASSERT_TRUE_MESSAGE(g_socket_desc >= 0, "MQTT Broker not running?");
 
     uint8_t mqtt_raw_buffer[256];
     MQTT_connect_t connect_params;
@@ -301,7 +331,8 @@ void test_mqtt_connect_simple_keepalive_timeout()
     connect_params.connect_flags.clean_session = true;
     MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
-                                        &socket_desc,
+                                        &data_stream_in_fptr,
+                                        &data_stream_out_fptr,
                                         &connect_params,
                                         true);
 
@@ -311,10 +342,10 @@ void test_mqtt_connect_simple_keepalive_timeout()
         uint8_t mqtt_raw_buffer[64];
         sleep(1+(i*2));
         // MQTT PING REQ
-        TEST_ASSERT_TRUE(mqtt_ping_req(&socket_desc) == Successfull);
+        TEST_ASSERT_TRUE(mqtt_ping_req(&data_stream_out_fptr) == Successfull);
 
         // Wait PINGRESP from borker
-        int rcv = recv(socket_desc, mqtt_raw_buffer , 2000 , 0);
+        int rcv = recv(g_socket_desc, mqtt_raw_buffer , 2000 , 0);
         TEST_ASSERT_FALSE_MESSAGE(rcv < 0,  "Receive failed with error");
         if (i == 0) {
             TEST_ASSERT_FALSE_MESSAGE(rcv == 0, "No data received");
@@ -325,7 +356,8 @@ void test_mqtt_connect_simple_keepalive_timeout()
     }
 
     // Close socket
-    close(socket_desc);
+    close(g_socket_desc);
+    g_socket_desc = -1;
 }
 
 

@@ -102,6 +102,16 @@ typedef struct MQTT_connect
     uint8_t client_id[MQTT_CLIENT_ID_SIZE];
 } MQTT_connect_t;
 
+/** 
+ * Function pointer, which is used to read data from input stream 
+ */
+typedef int (*data_stream_in_fptr_t)(uint8_t * a_data_ptr, size_t a_amount);
+
+/** 
+ * Function pointer, which is used to sed data to output stream 
+ */
+typedef int (*data_stream_out_fptr_t)(uint8_t * a_data_ptr, size_t a_amount);
+
 /**
  * Debug hex print
  *
@@ -122,14 +132,16 @@ void hex_print(uint8_t * a_data_ptr, size_t a_size);
  *
  * @param a_message_buffer_ptr [out] allocated working space
  * @param a_max_buffer_size [in] maximum size of the working space
- * @param a_socket_desc_ptr [in] socket handler
+ * @param a_in_fptr [in] input stream callback function (receive)
+ * @param a_out_fptr [in] output stream callback function (send)
  * @param a_connect_ptr [in] connection parameters @see MQTT_connect_t
  * @param wait_and_parse_response [in] when true, function will wait connak response from the broker and parse it
  * @return pointer to input buffer from where next header starts to. NULL in case of failure
  */
 MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr, 
                               size_t a_max_buffer_size,
-                              int * a_socket_desc_ptr,
+                              data_stream_in_fptr_t a_in_fptr,
+                              data_stream_out_fptr_t a_out_fptr,
                               MQTT_connect_t * a_connect_ptr,
                               bool wait_and_parse_response);
 /**
@@ -137,7 +149,7 @@ MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr,
  *
  * Send out MQTT disconnect to given socket
  *
- * @param a_socket_desc_ptr [in] socket handler
+ * @param a_out_fptr [in] output stream callback function
  * @return error code @see MQTTErrorCodes_t 
  */
-MQTTErrorCodes_t mqtt_disconnect(int * a_socket_desc_ptr);
+MQTTErrorCodes_t mqtt_disconnect(data_stream_out_fptr_t a_out_fptr);

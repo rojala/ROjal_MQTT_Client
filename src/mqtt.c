@@ -1,6 +1,5 @@
 #include "mqtt.h"
 #include <string.h>    // memcpy
-#include<sys/socket.h> // socket send and receive
 
 /****************************************************************************************
  * Local functions declaration                                                          *
@@ -107,7 +106,7 @@ uint8_t set_size(MQTT_fixed_header_t * a_output_ptr, size_t a_message_size);
 uint8_t * get_size(uint8_t * a_input_ptr, uint32_t * a_message_size_ptr);
 
 
-MQTTErrorCodes_t mqtt_ping_req( int * a_socket_desc_ptr);
+MQTTErrorCodes_t mqtt_ping_req(data_stream_out_fptr_t a_out_fptr);
 MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr);
 
 /****************************************************************************************
@@ -520,13 +519,14 @@ MQTTErrorCodes_t mqtt_parse_ping_ack(uint8_t * a_message_in_ptr)
  ****************************************************************************************/
 MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr,
                               size_t a_max_buffer_size,
-                              int * a_socket_desc_ptr,
+                              data_stream_in_fptr_t a_in_fptr,
+                              data_stream_out_fptr_t a_out_fptr,
                               MQTT_connect_t * a_connect_ptr,
                               bool wait_and_parse_response)
 {
     /* Ensure that pointers are valid */
-    if ((NULL != a_socket_desc_ptr) &&
-        (0 < *a_socket_desc_ptr)) {
+    if ((NULL != a_in_fptr) &&
+        (NULL != a_out_fptr)) {
         
         if ((NULL != a_message_buffer_ptr) &&
             (NULL != a_connect_ptr)) {
@@ -536,13 +536,13 @@ MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr,
                                                   a_connect_ptr,
                                                   &msg_size);
             if (NULL != msg_ptr) {
-                // Send CONNECT message to the broker using given socket without flags
-                if (send(*a_socket_desc_ptr, msg_ptr, msg_size, 0) == msg_size)
+                // Send CONNECT message to the broker without flags
+                if (a_out_fptr(msg_ptr, msg_size) == msg_size)
                 {
                     if (wait_and_parse_response)
                     {
                         // Wait response from borker
-                        int rcv = recv(*a_socket_desc_ptr, a_message_buffer_ptr , sizeof(MQTT_fixed_header_t) , 0);
+                        int rcv = a_in_fptr(a_message_buffer_ptr, sizeof(MQTT_fixed_header_t));
                         if (0 < rcv) {
                             return mqtt_connect_parse_ack(a_message_buffer_ptr);
                         } else
@@ -561,13 +561,13 @@ MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr,
     return InvalidArgument;
 }
 
-MQTTErrorCodes_t mqtt_disconnect( int * a_socket_desc_ptr)
+MQTTErrorCodes_t mqtt_disconnect(data_stream_out_fptr_t a_out_fptr)
 {   
-    if (NULL != a_socket_desc_ptr) {
+    if (NULL != a_out_fptr) {
         // Form and send fixed header with DISCONNECT command ID
         MQTT_fixed_header_t temporaryBuffer;
         uint8_t sizeOfFixedHdr = encode_fixed_header(&temporaryBuffer, false, QoS0, false, DISCONNECT, 0);
-        if (send(*a_socket_desc_ptr, &temporaryBuffer, sizeOfFixedHdr, 0) == sizeOfFixedHdr)
+        if (a_out_fptr((uint8_t*)&temporaryBuffer, sizeOfFixedHdr) == sizeOfFixedHdr)
             return Successfull;
         else
             return ServerUnavailabe;
@@ -575,13 +575,13 @@ MQTTErrorCodes_t mqtt_disconnect( int * a_socket_desc_ptr)
     return InvalidArgument;
 }
 
-MQTTErrorCodes_t mqtt_ping_req( int * a_socket_desc_ptr)
+MQTTErrorCodes_t mqtt_ping_req(data_stream_out_fptr_t a_out_fptr)
 {
-    if (NULL != a_socket_desc_ptr) {
+    if (NULL != a_out_fptr) {
         // Form and send fixed header with PINGREQ command ID
         MQTT_fixed_header_t temporaryBuffer;
         uint8_t sizeOfFixedHdr = encode_fixed_header(&temporaryBuffer, false, QoS0, false, PINGREQ, 0);
-        if (send(*a_socket_desc_ptr, &temporaryBuffer, sizeOfFixedHdr, 0) == sizeOfFixedHdr)
+        if (a_out_fptr((uint8_t*)&temporaryBuffer, sizeOfFixedHdr) == sizeOfFixedHdr)
             return Successfull;
         else
             return ServerUnavailabe;
