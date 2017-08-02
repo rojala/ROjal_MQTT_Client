@@ -14,6 +14,24 @@
 #define MQTT_PASSWORD_SIZE                      32
 #define MQTT_CLIENT_ID_SIZE                     24
 
+typedef enum MQTTState
+{
+    STATE_DISCONNECTED = 0,
+    STATE_CONNECTED,
+    STATE_PINGREQ
+} MQTTState_t;
+
+typedef enum MQTTAction
+{
+    ACTION_DISCONNECT,
+    ACTION_CONNECT,
+    ACTION_PUBLISH,
+    ACTION_SUBSCRIBE,
+    ACTION_KEEPALIVE,
+    ACTION_INIT,
+    ACTION_PARSE_INPUT_STREAM
+} MQTTAction_t;
+
 typedef enum MQTTMessageType
 {
     INVALIDCMD = 0,
@@ -37,6 +55,9 @@ typedef enum MQTTMessageType
 typedef enum MQTTErrorCodes
 {
     InvalidArgument = -64,
+    NoConnection,
+    AllreadyConnected,
+    PingNotSend,
     Successfull = 0,
     InvalidVersion = 1,
     InvalidIdentifier,
@@ -51,7 +72,7 @@ typedef enum MQTTQoSLevel
     QoS1,
     QoS2,
     QoSInvalid  
-}MQTTQoSLevel_t;
+} MQTTQoSLevel_t;
 
 #pragma pack(1)
 typedef struct struct_flags_and_type
@@ -103,6 +124,11 @@ typedef struct MQTT_connect
 } MQTT_connect_t;
 
 /** 
+ * Function pointer,....
+ */
+typedef void (*connected_fptr_t)(MQTTErrorCodes_t a_status);
+
+/** 
  * Function pointer, which is used to read data from input stream 
  */
 typedef int (*data_stream_in_fptr_t)(uint8_t * a_data_ptr, size_t a_amount);
@@ -112,6 +138,62 @@ typedef int (*data_stream_in_fptr_t)(uint8_t * a_data_ptr, size_t a_amount);
  */
 typedef int (*data_stream_out_fptr_t)(uint8_t * a_data_ptr, size_t a_amount);
 
+
+typedef struct MQTT_shared_data
+{
+    MQTTState_t state;
+    connected_fptr_t connected_cb_fptr;
+    uint8_t * buffer;
+    size_t  buffer_size;
+    data_stream_out_fptr_t out_fptr;
+    uint32_t mqtt_time;
+    uint32_t mqtt_packet_cntr;
+    int32_t keepalive_in_ms;
+    int32_t last_updated_timer_in_ms;
+} MQTT_shared_data_t;
+
+typedef struct MQTT_input_stream
+{
+    uint8_t * data;
+    uint32_t size_of_data;
+} MQTT_input_stream_t;
+
+typedef struct MQTT_publish
+{
+    struct_flags_and_type_t flags;
+    uint8_t * topic_ptr;
+    uint16_t  topic_length;
+    uint8_t * message_buffer_ptr;
+    uint32_t  message_buffer_size;
+} MQTT_publish_t;
+
+typedef struct MQTT_subscribe
+{
+    MQTTQoSLevel_t qos;
+    uint8_t * topic_ptr;
+    uint16_t  topic_length;
+} MQTT_subscribe_t;
+
+typedef struct MQTT_action_data
+{
+    union {
+        MQTT_shared_data_t * shared_ptr;
+        MQTT_connect_t * connect_ptr;
+        uint32_t epalsed_time_in_ms;
+        MQTT_input_stream_t * input_stream_ptr;
+        MQTT_publish_t * publish_ptr;
+        MQTT_subscribe_t * subscribe_ptr;
+    } action_argument;
+} MQTT_action_data_t;
+
+typedef struct MQTT_data_storage
+{
+    uint8_t * data_start;
+    uint8_t * data_ptr;
+    uint8_t * data_end;
+    uint32_t bytes_in_storage;
+
+} MQTT_data_storage_t;
 /**
  * Debug hex print
  *
@@ -125,31 +207,6 @@ void hex_print(uint8_t * a_data_ptr, size_t a_size);
 
 #define mqtt_printf printf
 #endif /* MQTT_H */
-/**
- * Decode connack from variable header stream.
- *
- * Parse out connection status from connak message.
- *
- * @param a_message_buffer_ptr [out] allocated working space
- * @param a_max_buffer_size [in] maximum size of the working space
- * @param a_in_fptr [in] input stream callback function (receive)
- * @param a_out_fptr [in] output stream callback function (send)
- * @param a_connect_ptr [in] connection parameters @see MQTT_connect_t
- * @param wait_and_parse_response [in] when true, function will wait connak response from the broker and parse it
- * @return pointer to input buffer from where next header starts to. NULL in case of failure
- */
-MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr, 
-                              size_t a_max_buffer_size,
-                              data_stream_in_fptr_t a_in_fptr,
-                              data_stream_out_fptr_t a_out_fptr,
-                              MQTT_connect_t * a_connect_ptr,
-                              bool wait_and_parse_response);
-/**
- * Send MQTT disconnect
- *
- * Send out MQTT disconnect to given socket
- *
- * @param a_out_fptr [in] output stream callback function
- * @return error code @see MQTTErrorCodes_t 
- */
-MQTTErrorCodes_t mqtt_disconnect(data_stream_out_fptr_t a_out_fptr);
+
+MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
+                      MQTT_action_data_t * a_action_ptr);

@@ -33,13 +33,20 @@ extern uint8_t encode_variable_header_connect(uint8_t * a_output_ptr,
 
 extern uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_connection_state_ptr);
 
+extern MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr, 
+                                     size_t a_max_buffer_size,
+                                     data_stream_in_fptr_t a_in_fptr,
+                                     data_stream_out_fptr_t a_out_fptr,
+                                     MQTT_connect_t * a_connect_ptr,
+                                     bool wait_and_parse_response);
+
+extern MQTTErrorCodes_t mqtt_disconnect(data_stream_out_fptr_t a_out_fptr);
+
 MQTTErrorCodes_t mqtt_ping_req(data_stream_out_fptr_t a_out_fptr);
-//MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr);
+
 MQTTErrorCodes_t mqtt_parse_ping_ack(uint8_t * a_message_in_ptr);
 
 char buffer[1024*256];
-
-#define MQTT_PORT 1883
 
 static int g_socket_desc = -1;
 
@@ -55,6 +62,8 @@ int open_mqtt_socket()
     server.sin_addr.s_addr = inet_addr(MQTT_SERVER);
     server.sin_family = AF_INET;
     server.sin_port = htons(MQTT_PORT);
+
+    printf("MQTT server %s:%i\n", MQTT_SERVER, MQTT_PORT);
 
     //Connect to remote server
     TEST_ASSERT_TRUE_MESSAGE(connect(socket_desc,

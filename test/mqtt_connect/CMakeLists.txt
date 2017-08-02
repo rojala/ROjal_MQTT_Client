@@ -1,11 +1,4 @@
-
-if(DEFINED ENV{MQTT_SERVER})
-    message("MQTT SERVER is set to: $ENV{MQTT_SERVER}")
-    add_definitions(-DMQTT_SERVER="$ENV{MQTT_SERVER}")
-else()
-    message(FATAL_ERROR "MQTT Broker environment variable not set MQTT_SERVER (use: export MQTT_SERVER=123.456.789.001)")
-endif()
-
+include(../CMakeTestServer.txt)
 include_directories(../unity
                     ../../include)
 
