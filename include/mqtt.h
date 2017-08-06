@@ -127,6 +127,7 @@ typedef struct MQTT_connect
  * Function pointer,....
  */
 typedef void (*connected_fptr_t)(MQTTErrorCodes_t a_status);
+typedef void (*subscrbe_fptr_t)(MQTTErrorCodes_t a_status, uint8_t * a_data_ptr, uint32_t a_data_len, uint8_t * a_topic_ptr, uint32_t a_topic_len);
 
 /** 
  * Function pointer, which is used to read data from input stream 
@@ -143,6 +144,7 @@ typedef struct MQTT_shared_data
 {
     MQTTState_t state;
     connected_fptr_t connected_cb_fptr;
+    subscrbe_fptr_t subscribe_cb_fptr;
     uint8_t * buffer;
     size_t  buffer_size;
     data_stream_out_fptr_t out_fptr;

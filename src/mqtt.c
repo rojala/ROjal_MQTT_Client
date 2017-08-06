@@ -113,6 +113,8 @@ uint8_t encode_variable_header_connect(uint8_t * a_output_ptr,
  */
 uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_connection_state_ptr);
 
+void decode_variable_header_suback(uint8_t * a_input_ptr, MQTTErrorCodes_t * a_subscribe_state_ptr);
+
 /**
  * Set size into fixed header
  *
@@ -499,36 +501,38 @@ bool encode_subscribe(data_stream_out_fptr_t a_out_fptr,
     if ((NULL != a_output_ptr) &&
         (NULL != a_topic_ptr)) {
 
-        uint32_t sizeOfMsg =  a_topic_size + sizeof(uint8_t);
+		/* topic string size + topic QoS + topic length + packet identifier */
+        uint32_t sizeOfMsg =  a_topic_size + sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t);
 
         if (a_topic_qos > QoS0)
             sizeOfMsg += sizeof(uint16_t);
 
+		/* In subscribe QoS must be 1 and rest remain zero */
         sizeOfMsg = encode_fixed_header((MQTT_fixed_header_t *) a_output_ptr,
-                                                0,
-                                                a_topic_qos,
-                                                0,
+                                                true,
+                                                QoS0,
+                                                false,
                                                 SUBSCRIBE,
                                                 sizeOfMsg);
 
-        
         hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
-
 
         if (0 < sizeOfMsg) {
-            /* Variable header contains packet indetifier in */
 
-        hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
+			hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
 
-            if (a_topic_qos > QoS0) {
+            if (1 /*a_topic_qos > QoS0*/) {
                 /* Copy packet identifier - valid only in QoS 1 and 2 levels */
                 a_output_ptr[sizeOfMsg++] = ((a_packet_identifier >> 8) & 0xFF);
                 a_output_ptr[sizeOfMsg++] = ((a_packet_identifier >> 0) & 0xFF);
             }
 
+			hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
 
-        hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
-
+			/* Copy topic length */
+			a_output_ptr[sizeOfMsg++] = ((a_topic_size >> 8) & 0xFF);
+			a_output_ptr[sizeOfMsg++] = ((a_topic_size >> 0) & 0xFF);
+			
             /* Copy topic name */
             memcpy((void*)&(a_output_ptr[sizeOfMsg]), a_topic_ptr, a_topic_size);
             sizeOfMsg += a_topic_size;
@@ -538,16 +542,16 @@ bool encode_subscribe(data_stream_out_fptr_t a_out_fptr,
 
             hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
 
-            // Send CONNECT message to the broker without flags
+            /* Send SUBSCRIBE message */
             if (a_out_fptr(a_output_ptr, sizeOfMsg) == sizeOfMsg)
                 ret = true;
             else
-                mqtt_printf("%s %u Sending subscribe failed %u",
+                mqtt_printf("%s %u Sending SUBSCRIBE failed %u,\n",
                             __FILE__,
                             __LINE__,
                             sizeOfMsg);
         } else {
-            mqtt_printf("%s %u Fixed header failed ",
+            mqtt_printf("%s %u Fixed header failed\n",
                         __FILE__,
                         __LINE__);
         }
@@ -577,6 +581,24 @@ uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_conne
     }
     return a_input_ptr + 2; /* CONNACK is always 2 bytes long. */
 }
+
+void decode_variable_header_suback(uint8_t * a_input_ptr, MQTTErrorCodes_t * a_subscribe_state_ptr)
+{
+    * a_subscribe_state_ptr = -1;
+    if (NULL != a_input_ptr)
+    {
+        * a_subscribe_state_ptr = *(a_input_ptr + 4); /*5th byte contains return value  */
+        mqtt_printf("%s %u SUBACK %x\n", __FILE__, __LINE__, * a_subscribe_state_ptr);
+    } else {
+        mqtt_printf("%s %u NULL argument given %p\n",
+                    __FILE__,
+                    __LINE__,
+                    a_input_ptr);
+    }
+	
+	* a_subscribe_state_ptr = (* a_subscribe_state_ptr == 0x80); /* 0x80 is failure and 0 status is successfull. TODO - 0-3 are successfull QoS levels*/
+}
+
 
 uint8_t * mqtt_add_payload_parameters(uint8_t * a_output_ptr, uint16_t a_length, uint8_t * a_parameter_ptr)
 {
@@ -829,13 +851,20 @@ MQTTErrorCodes_t mqtt_parse_input_stream(uint8_t * a_input_ptr,
                 g_shared_data->state = STATE_DISCONNECTED;
                 printf("Disconnected!!!\n");
             }
-            g_shared_data->connected_cb_fptr(connection_state);
+			if (NULL != g_shared_data->connected_cb_fptr)
+				g_shared_data->connected_cb_fptr(connection_state);
+			else
+				printf("Connection callback is NULL\n");
             break;
         case PUBLISH:
             /* n/a */
             break;
         case SUBACK:
-
+			decode_variable_header_suback(a_input_ptr, &status);
+			if (NULL != g_shared_data->subscribe_cb_fptr)
+				g_shared_data->subscribe_cb_fptr(status, NULL, 0, NULL, 0);
+			else
+				printf("Subscribe callback is NULL\n");
             break;
         case UNSUBACK:
             /* not implemented */
@@ -920,7 +949,7 @@ MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
                     (NULL != a_action_ptr)) {
 
                     printf("action..\n");
-            hex_print((uint8_t *) a_action_ptr->action_argument.publish_ptr->message_buffer_ptr, a_action_ptr->action_argument.publish_ptr->message_buffer_size);
+					hex_print((uint8_t *) a_action_ptr->action_argument.publish_ptr->message_buffer_ptr, a_action_ptr->action_argument.publish_ptr->message_buffer_size);
             
                         if (true == encode_publish(g_shared_data->out_fptr,
                                                    g_shared_data->buffer, 

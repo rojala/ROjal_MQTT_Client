@@ -9,9 +9,9 @@
 #include<time.h>     //nanosleep
 
 extern MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr);
-
 static volatile int g_socket_desc = -1;
 static volatile bool g_auto_state_connection_completed = false;
+static volatile bool g_auto_state_subscribe_completed = false;
 
 void sleep_ms(int milliseconds)
 {
@@ -88,10 +88,19 @@ int data_stream_out_fptr(uint8_t * a_data_ptr, size_t a_amount)
 void connected_cb(MQTTErrorCodes_t a_status)
 {
     if (Successfull == a_status)
-        printf("Connectd CB SUCCESSFULL\n");
+        printf("Connected CB SUCCESSFULL\n");
     else
-        printf("Connectd CB FAIL %i\n", a_status);
+        printf("Connected CB FAIL %i\n", a_status);
     g_auto_state_connection_completed = true;
+}
+
+void subscrbe_cb(MQTTErrorCodes_t a_status, uint8_t * a_data_ptr, uint32_t a_data_len, uint8_t * a_topic_ptr, uint32_t a_topic_len)
+{
+	if (Successfull == a_status)
+        printf("Subscribed CB SUCCESSFULL\n");
+    else
+        printf("Subscribed CB FAIL %i\n", a_status);
+	g_auto_state_subscribe_completed = true;
 }
 
 void test_sm_connect_manual_ack()
@@ -395,6 +404,114 @@ void test_sm_publish()
     g_socket_desc = 0;
 }
 
+
+void test_sm_subscrbe()
+{
+    uint8_t buffer[256];
+    MQTT_shared_data_t shared;
+    
+    shared.buffer = buffer;
+    shared.buffer_size = sizeof(buffer);
+    shared.out_fptr = &data_stream_out_fptr;
+    shared.connected_cb_fptr = &connected_cb;
+	shared.subscribe_cb_fptr = &subscrbe_cb;
+    g_auto_state_connection_completed = false;
+	g_auto_state_subscribe_completed = false;
+
+    MQTT_action_data_t action;
+    action.action_argument.shared_ptr = &shared;
+    MQTTErrorCodes_t state = mqtt(ACTION_INIT,
+                                  &action);
+
+    MQTT_connect_t connect_params;
+    sprintf((char*)(connect_params.client_id), "JAMKtest5");
+    connect_params.last_will_topic[0] = '\0';
+    connect_params.last_will_message[0] = '\0';
+    connect_params.username[0] = '\0';
+    connect_params.password[0] = '\0';
+    connect_params.keepalive = 0;
+    connect_params.connect_flags.clean_session = true;
+
+    action.action_argument.connect_ptr = &connect_params;
+
+    state = mqtt(ACTION_CONNECT,
+                 &action);
+
+    TEST_ASSERT_EQUAL_INT(Successfull, state);
+
+    // Wait response and request parse for it
+    // Parse will call given callback which will set global flag to true
+    int rcv = 0;
+    while(rcv == 0) {
+        rcv = data_stream_in_fptr(buffer, sizeof(MQTT_fixed_header_t));
+        if (rcv == 0)
+            sleep_ms(10);
+    }
+
+    if (0 < rcv) {
+        MQTT_input_stream_t input;
+        input.data = buffer;
+        input.size_of_data = (uint32_t)rcv;
+        action.action_argument.input_stream_ptr = &input;
+
+        state = mqtt(ACTION_PARSE_INPUT_STREAM,
+                     &action);
+    } else {
+        TEST_ASSERT(0);
+    }
+
+    do {
+        /* Wait callback */
+        sleep_ms(1);
+    } while( false == g_auto_state_connection_completed );
+
+    MQTT_subscribe_t subscribe;
+    subscribe.topic_ptr = NULL;
+    subscribe.topic_length = 0;
+    subscribe.qos = QoS0;
+	
+    const char topic[] = "test/msg";
+    subscribe.topic_ptr = (uint8_t*) topic;
+    subscribe.topic_length = strlen(topic);
+
+    action.action_argument.subscribe_ptr = &subscribe;
+
+    state = mqtt(ACTION_SUBSCRIBE,
+                 &action);
+
+    TEST_ASSERT_EQUAL_INT(Successfull, state);
+
+    state = mqtt(ACTION_DISCONNECT,
+                 NULL);
+
+    TEST_ASSERT_EQUAL_INT(Successfull, state);
+
+    // Wait response and request parse for it
+    // Parse will call given callback which will set global flag to true
+	rcv = 0;
+    while(rcv == 0) {
+        rcv = data_stream_in_fptr(buffer, sizeof(MQTT_fixed_header_t));
+        if (rcv == 0)
+            sleep_ms(10);
+    }
+	
+	MQTT_input_stream_t input;
+	input.data = buffer;
+	input.size_of_data = (uint32_t)rcv;
+	action.action_argument.input_stream_ptr = &input;
+
+	state = mqtt(ACTION_PARSE_INPUT_STREAM,
+				&action);
+	TEST_ASSERT_EQUAL_INT(Successfull, state);
+	
+	while( g_auto_state_subscribe_completed == false)
+		sleep_ms(10);
+
+    close(g_socket_desc);
+    g_socket_desc = 0;
+}
+
+
 /****************************************************************************************
  * TEST main                                                                            *
  ****************************************************************************************/
@@ -405,7 +522,8 @@ int main(void)
 
     RUN_TEST(test_sm_connect_manual_ack,                    tCntr++);
     RUN_TEST(test_sm_connect_auto_ack,                      tCntr++);
-    RUN_TEST(test_sm_connect_auto_ack_keepalive,            tCntr++);
+	RUN_TEST(test_sm_connect_auto_ack_keepalive,            tCntr++);
     RUN_TEST(test_sm_publish,                               tCntr++);
+	RUN_TEST(test_sm_subscrbe,                              tCntr++);
     return (UnityEnd());
 }
