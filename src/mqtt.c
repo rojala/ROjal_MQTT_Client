@@ -115,6 +115,11 @@ uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_conne
 
 void decode_variable_header_suback(uint8_t * a_input_ptr, MQTTErrorCodes_t * a_subscribe_state_ptr);
 
+uint8_t * decode_variable_header_publish(uint8_t * a_input_ptr, 
+										 uint8_t ** a_topic_out_ptr,
+										 MQTTQoSLevel_t a_qos,
+										 uint8_t * a_topic_max_length);
+
 /**
  * Set size into fixed header
  *
@@ -160,6 +165,14 @@ bool encode_subscribe(data_stream_out_fptr_t a_out_fptr,
                       uint16_t a_topic_size,
                       uint16_t a_packet_identifier);
 
+bool decode_publish(uint8_t * a_message_in_ptr,
+					uint32_t a_size_of_msg,
+                    MQTTQoSLevel_t a_qos,
+					uint8_t ** a_topic_out_ptr,
+					uint8_t * a_topic_length_out_ptr,
+					uint8_t ** a_out_message_ptr,
+					uint8_t * a_out_message_size_ptr);
+					  
 MQTTErrorCodes_t mqtt_ping_req(data_stream_out_fptr_t a_out_fptr);
 MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr);
 
@@ -228,7 +241,7 @@ uint8_t * get_size(uint8_t * a_input_ptr, uint32_t * a_message_size_ptr)
         aByte = a_input_ptr[cnt++];
         value += (aByte & 127) * multiplier;
         if (multiplier > (128*128*128)){
-            printf("Message size is too big %s %i \n", __FILE__, __LINE__);
+            mqtt_printf("Message size is too big %s %i \n", __FILE__, __LINE__);
             return NULL;
         }
         multiplier *= 128;
@@ -420,10 +433,6 @@ bool encode_publish(data_stream_out_fptr_t a_out_fptr,
 
         uint32_t sizeOfMsg = message_size + topic_size + sizeof(uint16_t);
 
-        printf("start ");
-            hex_print(message_ptr, message_size);
-            
-
         if (a_qos > QoS0)
             sizeOfMsg += sizeof(uint16_t);
 
@@ -443,13 +452,9 @@ bool encode_publish(data_stream_out_fptr_t a_out_fptr,
             a_output_ptr[sizeOfMsg++] = ((topic_size >> 8) & 0xFF);
             a_output_ptr[sizeOfMsg++] = ((topic_size >> 0) & 0xFF);
 
-        hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
-
             /* Copy topic name */
             memcpy((void*)&(a_output_ptr[sizeOfMsg]), topic_ptr, topic_size);
             sizeOfMsg += topic_size;
-
-        hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
 
             if (a_qos > QoS0) {
                 /* Copy packet identifier - valid only in QoS 1 and 2 levels */
@@ -458,12 +463,8 @@ bool encode_publish(data_stream_out_fptr_t a_out_fptr,
             }
 
             /* Copy message of topic */
-            printf("just ");
-            hex_print((uint8_t *) message_ptr, message_size);
             memcpy((void*)&(a_output_ptr[sizeOfMsg]), message_ptr, message_size);
             sizeOfMsg +=message_size;
-
-            hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
 
             // Send CONNECT message to the broker without flags
             if (a_out_fptr(a_output_ptr, sizeOfMsg) == sizeOfMsg)
@@ -484,6 +485,60 @@ bool encode_publish(data_stream_out_fptr_t a_out_fptr,
                     __LINE__,
                     a_output_ptr,
                     topic_ptr);
+    }
+    return ret;
+}
+
+
+bool decode_publish(uint8_t * a_message_in_ptr,
+					uint32_t a_size_of_msg,
+                    MQTTQoSLevel_t a_qos,
+					uint8_t ** a_topic_out_ptr,
+					uint8_t * a_topic_length_out_ptr,
+					uint8_t ** a_out_message_ptr,
+					uint8_t * a_out_message_size_ptr)
+{
+    bool ret = false;
+
+	if (NULL != a_message_in_ptr) {
+	
+		/* Decode variable header = topic name and length - read topic out and get pointer to payload */
+		uint8_t * payload = decode_variable_header_publish(a_message_in_ptr,
+		                                                   a_topic_out_ptr, 
+														   a_qos,
+														   a_topic_length_out_ptr);
+							   
+		if ((NULL != payload) &&
+		     (NULL != a_topic_out_ptr) &&
+			 (NULL != a_out_message_size_ptr) &&
+		     (0 < (*a_topic_length_out_ptr))) {
+			
+			uint32_t header_size = (payload - a_message_in_ptr);
+			
+			if ( header_size < a_size_of_msg ) {
+				*a_out_message_size_ptr = a_size_of_msg - header_size;
+				
+				*a_out_message_ptr = payload;
+
+				ret = true;
+			} else {
+				mqtt_printf("%s %u header size is bigger than reserved message size %u > %u\n",
+							__FILE__,
+							__LINE__,
+							header_size,
+							a_size_of_msg);
+			}
+		} else {
+			mqtt_printf("%s %u variable decode failed\n",
+						__FILE__,
+						__LINE__);
+		}
+
+    } else {
+        mqtt_printf("%s %u Invalid argument given %p\n",
+                    __FILE__,
+                    __LINE__,
+                    a_message_in_ptr);
     }
     return ret;
 }
@@ -599,6 +654,40 @@ void decode_variable_header_suback(uint8_t * a_input_ptr, MQTTErrorCodes_t * a_s
 	* a_subscribe_state_ptr = (* a_subscribe_state_ptr == 0x80); /* 0x80 is failure and 0 status is successfull. TODO - 0-3 are successfull QoS levels*/
 }
 
+uint8_t * decode_variable_header_publish(uint8_t * a_input_ptr, 
+									     uint8_t ** a_topic_out_ptr,
+										 MQTTQoSLevel_t a_qos, 
+										 uint8_t * a_topic_length_out_ptr)
+{
+	uint8_t * next_hdr = NULL;
+	
+    if ((NULL != a_input_ptr) &&
+	    (NULL != a_topic_length_out_ptr)) {
+
+		uint32_t index = 0;
+		/* First 2 bytes are topic_size */
+		*a_topic_length_out_ptr  = ((a_input_ptr[index++] >> 8) & 0xFF);
+		*a_topic_length_out_ptr |= ((a_input_ptr[index++] >> 0) & 0xFF);
+		
+		/* Set pointer to point beginning of topic - no copy, reuse existing buffer. */
+		*a_topic_out_ptr = &(a_input_ptr[index++]);
+		
+		index += *a_topic_length_out_ptr;
+
+		if (a_qos > QoS0)
+			/* Ignore 2 bytes packet identifiers - valid only in QoS 1 and 2 levels */
+			index += 2;
+
+		next_hdr = (uint8_t*)&(a_input_ptr[index-1]);
+    } else {
+        mqtt_printf("%s %u NULL argument given %p\n",
+                    __FILE__,
+                    __LINE__,
+                    a_input_ptr);
+        return NULL;
+    }
+    return next_hdr;
+}
 
 uint8_t * mqtt_add_payload_parameters(uint8_t * a_output_ptr, uint16_t a_length, uint8_t * a_parameter_ptr)
 {
@@ -818,7 +907,7 @@ MQTTErrorCodes_t mqtt_ping_req(data_stream_out_fptr_t a_out_fptr)
         // Form and send fixed header with PINGREQ command ID
         MQTT_fixed_header_t temporaryBuffer;
         uint8_t sizeOfFixedHdr = encode_fixed_header(&temporaryBuffer, false, QoS0, false, PINGREQ, 0);
-        printf("ping %u fixed hdr \n", sizeOfFixedHdr);
+
         if (a_out_fptr((uint8_t*)&temporaryBuffer, sizeOfFixedHdr) == sizeOfFixedHdr)
             return Successfull;
         else
@@ -835,36 +924,69 @@ MQTTErrorCodes_t mqtt_parse_input_stream(uint8_t * a_input_ptr,
     bool dup, retain;
     MQTTQoSLevel_t qos;
     MQTTMessageType_t type;
-    mqtt_printf("%s %u mqtt_parse_input_stream %p %x\n", __FILE__, __LINE__, a_input_ptr, *a_message_size_ptr);
     uint8_t * next_header_ptr = decode_fixed_header(a_input_ptr, &dup, &qos, &retain, &type, a_message_size_ptr);
+    mqtt_printf("%s %u mqtt_parse_input_stream %i %p %x\n", __FILE__, __LINE__, type, a_input_ptr, *a_message_size_ptr);
     switch (type)
     {
         case CONNACK:
-            printf("Conn ack ...\n");
-            uint8_t connection_state;
-            decode_variable_header_conack(next_header_ptr, &connection_state);
-            printf("Conn ack %i\n", connection_state);
-            if (Successfull == connection_state) {
-                g_shared_data->state = STATE_CONNECTED;
-                printf("connected\n");
-            } else {
-                g_shared_data->state = STATE_DISCONNECTED;
-                printf("Disconnected!!!\n");
-            }
-			if (NULL != g_shared_data->connected_cb_fptr)
-				g_shared_data->connected_cb_fptr(connection_state);
-			else
-				printf("Connection callback is NULL\n");
+			{
+				uint8_t connection_state;
+				decode_variable_header_conack(next_header_ptr, &connection_state);
+				mqtt_printf("Conn ack %i\n", connection_state);
+				if (Successfull == connection_state) {
+					g_shared_data->state = STATE_CONNECTED;
+					status = Successfull;
+					mqtt_printf("connected\n");
+				} else {
+					g_shared_data->state = STATE_DISCONNECTED;
+					status = Successfull;
+					mqtt_printf("Disconnected\n");
+				}
+				if (NULL != g_shared_data->connected_cb_fptr)
+					g_shared_data->connected_cb_fptr(connection_state);
+				else
+					mqtt_printf("Connection callback is NULL\n");
+			}
             break;
         case PUBLISH:
-            /* n/a */
-            break;
+			{
+				uint8_t * topic_ptr    = NULL;
+				uint16_t  topic_length = 0;
+				uint8_t * message_ptr  = NULL;
+				uint32_t  message_size = 0;
+
+				if (decode_publish(next_header_ptr,
+								   * a_message_size_ptr,
+								   qos,
+								   &topic_ptr,
+								   (uint8_t *) &topic_length,
+								   &message_ptr,
+								   (uint8_t *) &message_size)){
+
+					if (NULL != g_shared_data->subscribe_cb_fptr)
+						g_shared_data->subscribe_cb_fptr(Successfull, 
+														 message_ptr,
+														 message_size,
+														 topic_ptr,
+														 topic_length);
+					else
+						mqtt_printf("Subscribe callback is not set\n");
+					status = Successfull; 
+				} else {
+					if (NULL != g_shared_data->subscribe_cb_fptr)
+						g_shared_data->subscribe_cb_fptr(status, NULL, 0, NULL, 0);
+				}
+				break;
+			}
         case SUBACK:
-			decode_variable_header_suback(a_input_ptr, &status);
-			if (NULL != g_shared_data->subscribe_cb_fptr)
-				g_shared_data->subscribe_cb_fptr(status, NULL, 0, NULL, 0);
-			else
-				printf("Subscribe callback is NULL\n");
+			{
+				decode_variable_header_suback(a_input_ptr, &status);
+				if (NULL != g_shared_data->subscribe_cb_fptr)
+					g_shared_data->subscribe_cb_fptr(Successfull, NULL, 0, NULL, 0);
+				else
+					g_shared_data->subscribe_cb_fptr(PublishDecodeError, NULL, 0, NULL, 0);
+				status = Successfull;
+			}
             break;
         case UNSUBACK:
             /* not implemented */
@@ -888,9 +1010,8 @@ MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
                       MQTT_action_data_t * a_action_ptr)
 {
         MQTTErrorCodes_t status = InvalidArgument;
-
-        if (g_shared_data)
-            printf("Conn %u\n", g_shared_data->state);
+		
+		mqtt_printf("Action %i\n", a_action);
 
         switch (a_action)
         {
@@ -947,8 +1068,6 @@ MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
                 if ((NULL != g_shared_data) &&
                     (g_shared_data->state == STATE_CONNECTED) &&
                     (NULL != a_action_ptr)) {
-
-                    printf("action..\n");
 					hex_print((uint8_t *) a_action_ptr->action_argument.publish_ptr->message_buffer_ptr, a_action_ptr->action_argument.publish_ptr->message_buffer_size);
             
                         if (true == encode_publish(g_shared_data->out_fptr,
@@ -975,8 +1094,6 @@ MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
                     (g_shared_data->state == STATE_CONNECTED) &&
                     (NULL != a_action_ptr)) {
 
-                    printf("action..\n");
-
                         if (true == encode_subscribe(g_shared_data->out_fptr,
                                                      g_shared_data->buffer, 
                                                      g_shared_data->buffer_size,
@@ -1001,10 +1118,9 @@ MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
                             else
                                 g_shared_data->last_updated_timer_in_ms = 0;
                             
-                            printf("keepalive %u\n", g_shared_data->last_updated_timer_in_ms);
                             if ( 0 >= g_shared_data->last_updated_timer_in_ms) {
                                 status = mqtt_ping_req(g_shared_data->out_fptr);
-                                printf("failded %u\n", status);
+                                mqtt_printf("keep alive failded %u\n", status);
                                 g_shared_data->last_updated_timer_in_ms = g_shared_data->keepalive_in_ms;
                             } else {
                                 status = PingNotSend;
@@ -1012,8 +1128,6 @@ MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
                         } else {
                             status = Successfull;
                         }
-                    } else {
-                        printf("Disconected...?\n");
                     }
                 } else {
                     mqtt_printf("%s %u Keepalive argument NULL %p\n", __FILE__, __LINE__, (void*)a_action_ptr); 

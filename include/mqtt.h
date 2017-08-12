@@ -63,7 +63,8 @@ typedef enum MQTTErrorCodes
     InvalidIdentifier,
     ServerUnavailabe,
     BadUsernameOrPassword,
-    NotAuthorized
+    NotAuthorized,
+	PublishDecodeError
 } MQTTErrorCodes_t;
 
 typedef enum MQTTQoSLevel
@@ -127,7 +128,11 @@ typedef struct MQTT_connect
  * Function pointer,....
  */
 typedef void (*connected_fptr_t)(MQTTErrorCodes_t a_status);
-typedef void (*subscrbe_fptr_t)(MQTTErrorCodes_t a_status, uint8_t * a_data_ptr, uint32_t a_data_len, uint8_t * a_topic_ptr, uint32_t a_topic_len);
+typedef void (*subscrbe_fptr_t)(MQTTErrorCodes_t a_status, 
+						        uint8_t * a_data_ptr,
+								uint32_t a_data_len,
+								uint8_t * a_topic_ptr,
+								uint16_t a_topic_len);
 
 /** 
  * Function pointer, which is used to read data from input stream 
