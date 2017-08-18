@@ -1,12 +1,37 @@
+/************************************************************************************************************
+ * Copyright 2017 Rami Ojala / JAMK                                                                         *
+ *                                                                                                          *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of                          *
+ * this software and associated documentation files (the "Software"), to deal in the                        *
+ * Software without restriction, including without limitation the rights to use, copy,                      *
+ * modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,                      * 
+ * and to permit persons to whom the Software is furnished to do so, subject to the                         *
+ * following conditions:                                                                                    *
+ *                                                                                                          *
+ * 	The above copyright notice and this permission notice shall be included                                 *
+ * 	in all copies or substantial portions of the Software.                                                  *
+ *                                                                                                          *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,                      *
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A                            *
+ * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT                       *
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION                        *
+ * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE                           *
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                                                   *
+ *                                                                                                          *
+ * https://opensource.org/licenses/MIT                                                                      *
+ ************************************************************************************************************/
+
 #include "mqtt.h"
 #include <string.h>    // memcpy
 
-
 static MQTT_shared_data_t * g_shared_data = NULL;
 
-/****************************************************************************************
- * Local functions declaration                                                          *
- ****************************************************************************************/
+/************************************************************************************************************
+ *                                                                                                          *
+ * Declaration of local functions                                                                           *
+ *                                                                                                          *
+ ************************************************************************************************************/
+ 
  /**
  * Decode connack from variable header stream.
  *
@@ -20,12 +45,13 @@ static MQTT_shared_data_t * g_shared_data = NULL;
  * @param wait_and_parse_response [in] when true, function will wait connak response from the broker and parse it
  * @return pointer to input buffer from where next header starts to. NULL in case of failure
  */
-MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr, 
-                              size_t a_max_buffer_size,
-                              data_stream_in_fptr_t a_in_fptr,
-                              data_stream_out_fptr_t a_out_fptr,
-                              MQTT_connect_t * a_connect_ptr,
-                              bool wait_and_parse_response);
+MQTTErrorCodes_t mqtt_connect(uint8_t                * a_message_buffer_ptr, 
+                              size_t                   a_max_buffer_size,
+                              data_stream_in_fptr_t    a_in_fptr,
+                              data_stream_out_fptr_t   a_out_fptr,
+                              MQTT_connect_t         * a_connect_ptr,
+                              bool                     wait_and_parse_response);
+
 /**
  * Send MQTT disconnect
  *
@@ -36,27 +62,59 @@ MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr,
  */
 MQTTErrorCodes_t mqtt_disconnect(data_stream_out_fptr_t a_out_fptr);
 
- /**
- * Construct fixed header from given parameters.
+/**
+ * Send PING request
  *
- * Fixed header flags, message type and size are set by
- * this function. Result is stored to pre-allocated
- * output buffer.
+ * Construct ping request by building fixed header and send data out by calling
+ * given funciton pointer.
  *
- * @param output [out] is filled by the function (caller shall allocate and release)
- * @param dup [in] duplicate bit
- * @param qos [in] quality of service value @see MQTTQoSLevel_t
- * @param retain [in] retain bit
- * @param messageType [in] message type @see MQTTMessageType_t
- * @param msgSize [in] message folowed by the fixed header in bytes
- * @return size of header and 0 in case of failure
+ * @param a_out_fptr [in] output stream callback function
+ * @return error code @see MQTTErrorCodes_t 
  */
-uint8_t encode_fixed_header(MQTT_fixed_header_t * output,
-                            bool dup,
-                            MQTTQoSLevel_t qos,
-                            bool retain,
-                            MQTTMessageType_t messageType,
-                            uint32_t msgSize);
+MQTTErrorCodes_t mqtt_ping_req(data_stream_out_fptr_t a_out_fptr);
+
+/**
+ * Validate connection response
+ *
+ * Connect ack message is validated by this funciton.
+ *
+ * @param a_message_in_ptr [in] start of MQTT message
+ * @return error code @see MQTTErrorCodes_t 
+ */
+MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr);
+										 
+/**
+ * Set size into fixed header
+ *
+ * Construct size based on formula presented in MQTT protocol specification:  
+ * @see http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf chapter 2.2.3.
+ *
+ * @param a_output_ptr [out] pre-allocated puffer where size data will be written
+ * @param a_message_size [in] remaining size of MQTT message
+ * @return size of remaining length field in fixed header. 0 in case of failure.
+ */
+uint8_t set_size(MQTT_fixed_header_t * a_output_ptr,
+                 size_t                a_message_size);
+
+/**
+ * Get size from received MQTT message
+ *
+ * Destruct size based on formula presented in MQTT protocol specification:  
+ * @see http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf chapter 2.2.3.
+ *
+ * @param a_input_ptr [in] pointer to start of received MQTT message
+ * @param a_message_size_ptr [out] remaining size of MQTT message will be written to here
+ * @return pointer to next header or NULL in case of failure
+ */
+uint8_t * get_size(uint8_t  * a_input_ptr, 
+                   uint32_t * a_message_size_ptr);
+
+
+/************************************************************************************************************
+ *                                                                                                          *
+ * Declaration of local decode functions                                                                    *
+ *                                                                                                          *
+ ************************************************************************************************************/
 
 /**
  * Decode fixed header from input stream.
@@ -73,14 +131,83 @@ uint8_t encode_fixed_header(MQTT_fixed_header_t * output,
  * @param a_message_size_ptr [out] message folowed by the fixed header in bytes
  * @return pointer to input buffer from where next header starts to. NULL in case of failure
  */
-uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
-                              bool * a_dup_ptr,
-                              MQTTQoSLevel_t * a_qos_ptr,
-                              bool * a_retain_ptr,
+uint8_t * decode_fixed_header(uint8_t           * a_input_ptr,
+                              bool              * a_dup_ptr,
+                              MQTTQoSLevel_t    * a_qos_ptr,
+                              bool              * a_retain_ptr,
                               MQTTMessageType_t * a_message_type_ptr,
-                              uint32_t * a_message_size_ptr);
+                              uint32_t          * a_message_size_ptr);
 
 /**
+ * Decode connack from variable header stream.
+ *
+ * Parse out connection status from connak message.
+ *
+ * @param a_input_ptr [in] point to first byte of received MQTT message.
+ * @param a_connection_state_ptr [out] connection state. 0 = successfully connected.
+ * @return pointer to input buffer from where next header starts to. NULL in case of failure.
+ */
+uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, 
+                                        uint8_t * a_connection_state_ptr);
+
+/**
+ * Decode variable header suback frame.
+ *
+ * Decode variable header suback frame which is received after subscribe command has been sent to 
+ * broker. Variable header contains subscribe status information for the subscribe request.
+ *
+ * @param a_input_ptr [in] point to first byte of variable header.
+ * @param a_subscribe_state_ptr [out] Result of subscribe will be stored into this variable location.
+ */
+void decode_variable_header_suback(uint8_t          * a_input_ptr, 
+                                   MQTTErrorCodes_t * a_subscribe_state_ptr);
+
+/**
+ * Decode variable header publish frame.
+ *
+ * Decode variable header suback frame from given input stream. Varialbe header contains
+ * topic name, length and topic quality level, which are parsed out from the given byte stream.
+ *
+ * @param a_input_ptr [in] point to first byte of variable header.
+ * @param a_topic_out_ptr [out] this will point to location from where topic start on input stream.
+ * @param a_qos [out] not used at this point, would contain QoS information of published message.
+ * @param a_topic_length [out] topic length is written to to this parameter.
+ * @return pointer to input buffer from where payload starts. NULL in case of failure.
+ */
+uint8_t * decode_variable_header_publish(uint8_t        *  a_input_ptr, 
+										 uint8_t        ** a_topic_out_ptr,
+										 MQTTQoSLevel_t    a_qos,
+										 uint8_t        *  a_topic_length);
+
+/**
+ * Decode complete publish message
+ *
+ * Decode publish message using fixed header and variable header functions. 
+ *
+ * @param a_message_in_ptr [in] pointer to variable header part of a MQTT publish message
+ * @param a_size_of_msg [in] size of message.
+ * @param a_qos [out] not used at this point, would contain QoS information of published message.
+ * @param a_topic_out_ptr [out] will point to beginning of topic in given input stream.
+ * @param a_topic_length_out_ptr [out] topic length is written to to this parameter.
+ * @param a_out_message_ptr [out] will point to beginning of payload in given input stream.
+ * @param a_out_message_size_ptr [out] payload length is written to to this parameter.
+ * @return pointer to input buffer from where payload starts. NULL in case of failure.
+ */			 
+bool decode_publish(uint8_t        *  a_message_in_ptr,
+					uint32_t          a_size_of_msg,
+                    MQTTQoSLevel_t    a_qos,
+					uint8_t        ** a_topic_out_ptr,
+					uint8_t        *  a_topic_length_out_ptr,
+					uint8_t        ** a_out_message_ptr,
+					uint8_t        *  a_out_message_size_ptr);
+
+
+/************************************************************************************************************
+ *                                                                                                          *
+ * Declaration for internal encode functions                                                                *
+ *                                                                                                          *
+ ************************************************************************************************************/
+								/**
  * Construct variable header for connect message
  *
  * Fill in all fileds needed to build MQTT connect message.
@@ -94,112 +221,110 @@ uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
  * @param a_keepalive [in] 16bit keep alive counter
  * @return length of header = 10 bytes or 0 in case of failure
  */
-uint8_t encode_variable_header_connect(uint8_t * a_output_ptr, 
-                                       bool a_clean_session,
-                                       bool a_last_will,
-                                       MQTTQoSLevel_t a_last_will_qos,
-                                       bool a_permanent_last_will,
-                                       bool a_password,
-                                       bool a_username,
-                                       uint16_t a_keepalive);
+uint8_t encode_variable_header_connect(uint8_t        * a_output_ptr, 
+                                       bool             a_clean_session,
+                                       bool             a_last_will,
+                                       MQTTQoSLevel_t   a_last_will_qos,
+                                       bool             a_permanent_last_will,
+                                       bool             a_password,
+                                       bool             a_username,
+                                       uint16_t         a_keepalive);
+	   
 /**
- * Decode connack from variable header stream.
+ * Decode variable header publish frame.
  *
- * Parse out connection status from connak message.
+ * Decode variable header suback frame from given input stream. Varialbe header contains
+ * topic name, length and topic quality level, which are parsed out from the given byte stream.
  *
- * @param a_input_ptr [in] point to first byte of received MQTT message
- * @param a_connection_state_ptr [out] connection state. 0 = successfully connected
- * @return pointer to input buffer from where next header starts to. NULL in case of failure
+ * @param a_input_ptr [in] point to first byte of variable header
+ * @param a_topic_out_ptr [out] this will point to location from where topic start on input stream.
+ * @param a_qos [out] not used at this point, would contain QoS information of published message.
+ * @param a_topic_length [out] topic length is written to to this parameter.
+ * @return pointer to input buffer from where payload starts. NULL in case of failure.
  */
-uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_connection_state_ptr);
+bool encode_publish(data_stream_out_fptr_t   a_out_fptr,
+                    uint8_t                * a_output_ptr,
+                    uint32_t                 a_output_size,
+                    bool                     a_retain,
+                    MQTTQoSLevel_t           a_qos,
+                    bool                     a_dup,
+                    uint8_t                * topic_ptr,
+                    uint16_t                 topic_size,
+                    uint16_t                 packet_identifier,
+                    uint8_t                * message_ptr,
+                    uint32_t                 message_size);
 
-void decode_variable_header_suback(uint8_t * a_input_ptr, MQTTErrorCodes_t * a_subscribe_state_ptr);
-
-uint8_t * decode_variable_header_publish(uint8_t * a_input_ptr, 
-										 uint8_t ** a_topic_out_ptr,
-										 MQTTQoSLevel_t a_qos,
-										 uint8_t * a_topic_max_length);
-
-/**
- * Set size into fixed header
+ /**
+ * Construct fixed header from given parameters.
  *
- * Construct size based on formula presented in MQTT protocol specification:  
- * @see http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf chapter 2.2.3.
+ * Fixed header flags, message type and size are set by
+ * this function. Result is stored to pre-allocated
+ * output buffer.
  *
- * @param a_output_ptr [out] pre-allocated puffer where size data will be written
- * @param a_message_size [in] remaining size of MQTT message
- * @return size of remaining length field in fixed header. 0 in case of failure.
+ * @param a_output_ptr [out] is filled by the function (caller shall allocate and release)
+ * @param a_dup [in] duplicate bit
+ * @param a_qos [in] quality of service value @see MQTTQoSLevel_t
+ * @param a_retain [in] retain bit
+ * @param a_messageType [in] message type @see MQTTMessageType_t
+ * @param a_msgSize [in] message folowed by the fixed header in bytes
+ * @return size of header and 0 in case of failure
  */
-uint8_t set_size(MQTT_fixed_header_t * a_output_ptr, size_t a_message_size);
+uint8_t encode_fixed_header(MQTT_fixed_header_t * a_output_ptr,
+                            bool                  a_dup,
+                            MQTTQoSLevel_t        a_qos,
+                            bool                  a_retain,
+                            MQTTMessageType_t     a_messageType,
+                            uint32_t              a_msgSize);
 
-/**
- * Get size from received MQTT message
+ /**
+ * Construct fixed header from given parameters.
  *
- * Destruct size based on formula presented in MQTT protocol specification:  
- * @see http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf chapter 2.2.3.
+ * Fixed header flags, message type and size are set by
+ * this function. Result is stored to pre-allocated
+ * output buffer.
  *
- * @param a_input_ptr [in] pointer to start of received MQTT message
- * @param a_message_size_ptr [out] remaining size of MQTT message will be written to here
- * @return pointer to next header or NULL in case of failure
+ * @param a_out_fptr [in] function pointer, which is called to send message out.
+ * @param a_output_ptr [out] ouptut buffer, where date is stored before sending (caller ensure validity).
+ * @param a_output_size [in] maximum size of given output buffer.
+ * @param a_topic_qos [in] QoS for the topic.
+ * @param a_topic_ptr [in] poitner to topic. 
+ * @param a_topic_size [in] size of the topic.
+ * @param a_packet_identifier [in] packet sequence number.
+ * @return true or false
  */
-uint8_t * get_size(uint8_t * a_input_ptr, uint32_t * a_message_size_ptr);
+bool encode_subscribe(data_stream_out_fptr_t   a_out_fptr,
+                      uint8_t                * a_output_ptr,
+                      uint32_t                 a_output_size,
+                      MQTTQoSLevel_t           a_topic_qos,
+                      uint8_t                * a_topic_ptr,
+                      uint16_t                 a_topic_size,
+                      uint16_t                 a_packet_identifier);
 
 
-bool encode_publish(data_stream_out_fptr_t a_out_fptr,
-                    uint8_t * a_output_ptr,
-                    uint32_t  a_output_size,
-                    bool a_retain,
-                    MQTTQoSLevel_t a_qos,
-                    bool a_dup,
-                    uint8_t * topic_ptr,
-                    uint16_t topic_size,
-                    uint16_t packet_identifier,
-                    uint8_t * message_ptr,
-                    uint32_t message_size);
-
-bool encode_subscribe(data_stream_out_fptr_t a_out_fptr,
-                      uint8_t * a_output_ptr,
-                      uint32_t a_output_size,
-                      MQTTQoSLevel_t a_topic_qos,
-                      uint8_t * a_topic_ptr,
-                      uint16_t a_topic_size,
-                      uint16_t a_packet_identifier);
-
-bool decode_publish(uint8_t * a_message_in_ptr,
-					uint32_t a_size_of_msg,
-                    MQTTQoSLevel_t a_qos,
-					uint8_t ** a_topic_out_ptr,
-					uint8_t * a_topic_length_out_ptr,
-					uint8_t ** a_out_message_ptr,
-					uint8_t * a_out_message_size_ptr);
-					  
-MQTTErrorCodes_t mqtt_ping_req(data_stream_out_fptr_t a_out_fptr);
-MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr);
-
-/****************************************************************************************
- * Test and debug functions                                                             *
- ****************************************************************************************/
+/************************************************************************************************************
+ * Test and debug functions                                                                                 *
+ ************************************************************************************************************/
 
 /* Debug hex print function */
 void hex_print(uint8_t * a_data_ptr, size_t a_size)
 {
-    for(size_t i = 0; i < a_size; i++)
+    for (size_t i = 0; i < a_size; i++)
         mqtt_printf("0x%02x ", a_data_ptr[i] & 0xff);
     mqtt_printf("\n");
 }
 
-/****************************************************************************************
- * Fixed Header functions                                                               *
- * Get and set remaining size                                                           *
- * @see http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf chapter 2.2.3 *
- ****************************************************************************************/
-uint8_t set_size(MQTT_fixed_header_t * a_output_ptr, size_t a_message_size)
+/************************************************************************************************************
+ * Fixed Header functions                                                                                   *
+ * Get message size and set message size into fixed header                                                  *
+ * @see http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf chapter 2.2.3                     *
+ ************************************************************************************************************/
+uint8_t set_size(MQTT_fixed_header_t * a_output_ptr,
+                 size_t a_message_size)
 {
     uint8_t return_value = 0;
     if ((MQTT_MAX_MESSAGE_SIZE > a_message_size) && /* Message size in boundaries 0-max */
-        (NULL != a_output_ptr))                  /* Output pointer is not NULL       */
+        (NULL != a_output_ptr))                     /* Output pointer is not NULL       */
     {
-        
         /* Construct size from MQTT message - see the spec.*/
         do {
             uint8_t encodedByte = a_message_size % 128;
@@ -216,7 +341,8 @@ uint8_t set_size(MQTT_fixed_header_t * a_output_ptr, size_t a_message_size)
     return return_value;
 }
 
-uint8_t * get_size(uint8_t * a_input_ptr, uint32_t * a_message_size_ptr)
+uint8_t * get_size(uint8_t * a_input_ptr,
+                   uint32_t * a_message_size_ptr)
 {
     uint32_t multiplier = 1;
     uint32_t value = 0;
@@ -369,6 +495,11 @@ uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
     return return_ptr;
 }
 
+/****************************************************************************************
+ * Variable header functions                                                            *
+ * Encode and decode fixed header functions                                             *
+ ****************************************************************************************/
+ 
 uint8_t encode_variable_header_connect(uint8_t * a_output_ptr, 
                                        bool a_clean_session,
                                        bool a_last_will,
@@ -1005,6 +1136,13 @@ MQTTErrorCodes_t mqtt_parse_input_stream(uint8_t * a_input_ptr,
  * MQTT State Maschine                                                                  *
  ****************************************************************************************/
 
+ #include <time.h>
+void timestamp()
+{
+    time_t ltime; /* calendar time */
+    ltime=time(NULL); /* get current cal time */
+    printf("%s",asctime( localtime(&ltime) ) );
+}
 
 MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
                       MQTT_action_data_t * a_action_ptr)
@@ -1110,6 +1248,7 @@ MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
             case ACTION_KEEPALIVE:
                 if (NULL != a_action_ptr) {
                     if (g_shared_data->state == STATE_CONNECTED) {
+						timestamp();
 
                         if (INT32_MIN != g_shared_data->keepalive_in_ms) {
 
@@ -1117,11 +1256,17 @@ MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
                                 g_shared_data->last_updated_timer_in_ms -= a_action_ptr->action_argument.epalsed_time_in_ms;
                             else
                                 g_shared_data->last_updated_timer_in_ms = 0;
-                            
+							
+							printf("keepalive %i %i\n", a_action_ptr->action_argument.epalsed_time_in_ms, g_shared_data->last_updated_timer_in_ms);
+							
                             if ( 0 >= g_shared_data->last_updated_timer_in_ms) {
                                 status = mqtt_ping_req(g_shared_data->out_fptr);
-                                mqtt_printf("keep alive failded %u\n", status);
-                                g_shared_data->last_updated_timer_in_ms = g_shared_data->keepalive_in_ms;
+								if (status != Successfull) {
+									mqtt_printf("keep alive failed %u\n", status);
+								} else {
+									mqtt_printf("keepalive\n");
+									g_shared_data->last_updated_timer_in_ms = g_shared_data->keepalive_in_ms;
+								}
                             } else {
                                 status = PingNotSend;
                             }
