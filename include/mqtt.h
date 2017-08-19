@@ -4,12 +4,12 @@
  * Permission is hereby granted, free of charge, to any person obtaining a copy of                          *
  * this software and associated documentation files (the "Software"), to deal in the                        *
  * Software without restriction, including without limitation the rights to use, copy,                      *
- * modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,                      * 
+ * modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,                      *
  * and to permit persons to whom the Software is furnished to do so, subject to the                         *
  * following conditions:                                                                                    *
  *                                                                                                          *
- * 	The above copyright notice and this permission notice shall be included                                 *
- * 	in all copies or substantial portions of the Software.                                                  *
+ *  The above copyright notice and this permission notice shall be included                                 *
+ *  in all copies or substantial portions of the Software.                                                  *
  *                                                                                                          *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,                      *
  * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A                            *
@@ -27,6 +27,7 @@
 #include <stddef.h>  // size_t
 #include <stdbool.h> // bool
 #include <stdio.h>   // printf
+#include <string.h>  // memcpy
 
 #define MQTT_MAX_MESSAGE_SIZE                   (0x80000000 - 1)
 #define MQTT_CONNECT_LAST_WILL_TOPIC_SIZE       256
@@ -35,13 +36,23 @@
 #define MQTT_PASSWORD_SIZE                      32
 #define MQTT_CLIENT_ID_SIZE                     24
 
+
+/**
+ * @brief MQTT connection state
+ *
+ * Two major states, connected and disconnected.
+ */
 typedef enum MQTTState
 {
     STATE_DISCONNECTED = 0,
-    STATE_CONNECTED,
-    STATE_PINGREQ
+    STATE_CONNECTED
 } MQTTState_t;
 
+/**
+ * @brief MQTT action in mqtt() function.
+ *
+ * Defines action what mqtt() function shall do.
+ */
 typedef enum MQTTAction
 {
     ACTION_DISCONNECT,
@@ -53,6 +64,11 @@ typedef enum MQTTAction
     ACTION_PARSE_INPUT_STREAM
 } MQTTAction_t;
 
+/**
+ * @brief MQTT message types
+ *
+ * @ref <a href="linkURLhttp://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf">3.1.1 chapter 2.2.1 MQTT Control Packet type</a>
+ */
 typedef enum MQTTMessageType
 {
     INVALIDCMD = 0,
@@ -73,6 +89,11 @@ typedef enum MQTTMessageType
     MAXCMD
 } MQTTMessageType_t;
 
+/**
+ * @brief MQTT status and error codes
+ *
+ * Value 0 is handled as successfull operation like in the specification.
+ */
 typedef enum MQTTErrorCodes
 {
     InvalidArgument = -64,
@@ -85,16 +106,28 @@ typedef enum MQTTErrorCodes
     ServerUnavailabe,
     BadUsernameOrPassword,
     NotAuthorized,
-	PublishDecodeError
+    PublishDecodeError
 } MQTTErrorCodes_t;
+
+/**
+ * @brief MQTT message types
+ *
+ * @ref <a href="linkURLhttp://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf">3.1.1 chapter 4.3 Quality of Service levels and protocol flows</a>
+ */
 
 typedef enum MQTTQoSLevel
 {
     QoS0 = 0,
     QoS1,
     QoS2,
-    QoSInvalid  
+    QoSInvalid
 } MQTTQoSLevel_t;
+
+
+/****************************************************************************************
+ * @brief data structures                                                               *
+ * Values and bitfields to fill MQTT messages correctly                                 *
+ ****************************************************************************************/
 
 #pragma pack(1)
 typedef struct struct_flags_and_type
@@ -112,7 +145,7 @@ typedef struct MQTT_fixed_header
     uint8_t length[4];
 } MQTT_fixed_header_t;
 
-/* Variable headers */
+/* VaARIABLE HEADER */
 typedef struct MQTT_variable_header_connect_flags
 {
     uint8_t reserved:1;
@@ -133,6 +166,7 @@ typedef struct MQTT_variable_header_connect
     uint8_t keepalive[2];     /* Keepaive timer for the connection         */
 } MQTT_variable_header_connect_t;
 
+/* CONNECT */
 typedef struct MQTT_connect
 {
     MQTT_fixed_header_t fixed_header;
@@ -145,45 +179,55 @@ typedef struct MQTT_connect
     uint8_t client_id[MQTT_CLIENT_ID_SIZE];
 } MQTT_connect_t;
 
-/** 
- * Function pointer,....
- */
+/****************************************************************************************
+ * @brief state and data handling function pointers                                     *
+ * Following function pointers are used with connection and subscribe functionalities.  *
+ ****************************************************************************************/
 typedef void (*connected_fptr_t)(MQTTErrorCodes_t a_status);
-typedef void (*subscrbe_fptr_t)(MQTTErrorCodes_t a_status, 
-						        uint8_t * a_data_ptr,
-								uint32_t a_data_len,
-								uint8_t * a_topic_ptr,
-								uint16_t a_topic_len);
 
-/** 
- * Function pointer, which is used to read data from input stream 
- */
+typedef void (*subscrbe_fptr_t)(MQTTErrorCodes_t a_status,
+                                uint8_t * a_data_ptr,
+                                uint32_t a_data_len,
+                                uint8_t * a_topic_ptr,
+                                uint16_t a_topic_len);
+
+
+/****************************************************************************************
+ * @brief input and output function pointers                                            *
+ * Following function pointers are used to send and receive MQTT messages.              *
+ * Must be implemnted.                                                                  *
+ ****************************************************************************************/
 typedef int (*data_stream_in_fptr_t)(uint8_t * a_data_ptr, size_t a_amount);
 
-/** 
- * Function pointer, which is used to sed data to output stream 
- */
 typedef int (*data_stream_out_fptr_t)(uint8_t * a_data_ptr, size_t a_amount);
 
 
+/****************************************************************************************
+ * @brief shared data structure.                                                        *
+ * MQTT stack uses this shared data sructure to keep its state and needed function      *
+ * pointers in safe.                                                                    *
+ ****************************************************************************************/
 typedef struct MQTT_shared_data
 {
-    MQTTState_t state;
-    connected_fptr_t connected_cb_fptr;
-    subscrbe_fptr_t subscribe_cb_fptr;
-    uint8_t * buffer;
-    size_t  buffer_size;
-    data_stream_out_fptr_t out_fptr;
-    uint32_t mqtt_time;
-    uint32_t mqtt_packet_cntr;
-    int32_t keepalive_in_ms;
-    int32_t last_updated_timer_in_ms;
+    MQTTState_t state;                    /* Connection state                           */
+    connected_fptr_t connected_cb_fptr;   /* Connected callback                         */
+    subscrbe_fptr_t subscribe_cb_fptr;    /* Subscribe callback                         */
+    uint8_t * buffer;                     /* Pointer to transmit buffer                 */
+    size_t  buffer_size;                  /* Size of transmit buffer                    */
+    data_stream_out_fptr_t out_fptr;      /* Sending out MQTT stream function pointer   */
+    uint32_t mqtt_packet_cntr;            /* MQTT packet indentifer counter             */
+    int32_t keepalive_in_ms;              /* Keepalive timer value - connect message    */
+    int32_t time_to_next_ping_in_ms;      /* Keepalive counter to track next ping       */
 } MQTT_shared_data_t;
 
+/****************************************************************************************
+ * @brief MQTT action structures                                                        *
+ * MQTT action parameter structures for different actions.                              *
+ ****************************************************************************************/
 typedef struct MQTT_input_stream
 {
-    uint8_t * data;
-    uint32_t size_of_data;
+    uint8_t  * data;
+    uint32_t   size_of_data;
 } MQTT_input_stream_t;
 
 typedef struct MQTT_publish
@@ -202,6 +246,10 @@ typedef struct MQTT_subscribe
     uint16_t  topic_length;
 } MQTT_subscribe_t;
 
+
+/****************************************************************************************
+ * @brief MQTT action union                                                             *
+ ****************************************************************************************/
 typedef struct MQTT_action_data
 {
     union {
@@ -214,27 +262,57 @@ typedef struct MQTT_action_data
     } action_argument;
 } MQTT_action_data_t;
 
-typedef struct MQTT_data_storage
-{
-    uint8_t * data_start;
-    uint8_t * data_ptr;
-    uint8_t * data_end;
-    uint32_t bytes_in_storage;
-
-} MQTT_data_storage_t;
+/****************************************************************************************
+ * @brief Debug                                                                         *
+ ****************************************************************************************/
 /**
  * Debug hex print
  *
  * Dump out given data chunk in hex format
  *
- * @param a_data_ptr [in] pointer to beginning of the chunk
- * @param a_size [in] size of the chunk in bytes
+ * @param a_data_ptr [in] pointer to beginning of the chunk.
+ * @param a_size [in] size of the chunk in bytes.
  * @return None
  */
 void hex_print(uint8_t * a_data_ptr, size_t a_size);
 
+/**
+ * mqtt_printf
+ *
+ * printf function to print out debugging data.
+ *
+ */
 #define mqtt_printf printf
-#endif /* MQTT_H */
 
+/**
+ * mqtt_memcpy
+ *
+ * memcpy function to copy data from source to destination.
+ *
+ */
+#define mqtt_memcpy memcpy
+
+/**
+ * mqtt_memset
+ *
+ * Set given memory with specified value = memset.
+ *
+ */
+#define mqtt_memset memset
+
+/****************************************************************************************
+ * @brief API                                                                           *
+ ****************************************************************************************/
+/**
+ * mqtt API
+ *
+ * API function to control, send and receive MQTT messges.
+ *
+ * @param a_action [in] action type see MQTTAction_t.
+ * @param a_action_ptr [in] parameters for action see MQTT_action_data_t.
+ * @return None
+ */
 MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
                       MQTT_action_data_t * a_action_ptr);
+
+#endif /* MQTT_H */
