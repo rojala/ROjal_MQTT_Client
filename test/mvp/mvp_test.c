@@ -11,10 +11,6 @@
 
 #include "socket_read_write.h"
 
-// bool socket_initialize(char * a_inet_addr, uint32_t a_port, socket_data_received_fptr_t);
-// bool socket_write(uint8_t * a_data, size_t a_amount);
-//bool stop_reading_thread();
-
 static uint8_t mqtt_send_buffer[1024*10];
 static MQTT_shared_data_t mqtt_shared_data;
 static bool g_mqtt_connected = false;
@@ -105,12 +101,12 @@ bool enable(uint16_t a_keepalive_timeout, char * clientName)
 		
 		/* Connect to broker */
 		MQTT_connect_t connect_params;
-		// printf((char*)(connect_params.client_id), clientName);
-		memcpy((void*)(connect_params.client_id), (void*)clientName, sizeof((connect_params.client_id)));
-		connect_params.last_will_topic[0] = '\0';
-		connect_params.last_will_message[0] = '\0';
-		connect_params.username[0] = '\0';
-		connect_params.password[0] = '\0';
+		connect_params.client_id = clientName;
+		uint8_t aparam[] = "\0";
+		connect_params.last_will_topic = aparam;
+		connect_params.last_will_message = aparam;
+		connect_params.username = aparam;
+		connect_params.password = aparam;
 		connect_params.keepalive = a_keepalive_timeout;
 		connect_params.connect_flags.clean_session = true;
 
@@ -121,7 +117,7 @@ bool enable(uint16_t a_keepalive_timeout, char * clientName)
 
 		TEST_ASSERT_EQUAL_INT(Successfull, state);
 		printf("MQTT Connecting\n");
-		
+
 		uint8_t timeout = 50;
 		while (timeout != 0 && g_mqtt_connected == false) {
 			timeout--;
@@ -151,7 +147,7 @@ bool disable()
 	return true;
 }
 
-bool publish(char * a_topic, char * a_msg)
+bool mvp_publish(char * a_topic, char * a_msg)
 {
 	MQTT_publish_t publish;
     publish.flags.dup = false;
@@ -174,7 +170,7 @@ bool publish(char * a_topic, char * a_msg)
 	return true;
 }
 
-bool subscribe(char * a_topic)
+bool mvp_subscribe(char * a_topic)
 {
 	bool ret = false;
 	MQTT_subscribe_t subscribe;
@@ -204,7 +200,7 @@ bool subscribe(char * a_topic)
 	return ret;
 }
 
-bool keepalive(uint32_t a_duration_in_ms)
+bool mvp_keepalive(uint32_t a_duration_in_ms)
 {
 	MQTT_action_data_t ap;
     ap.action_argument.epalsed_time_in_ms = a_duration_in_ms;
@@ -222,7 +218,7 @@ void mvp_test_b()
 {
 	TEST_ASSERT_TRUE_MESSAGE(enable(0, "JAMKtestMVP2"), "Connect failed");
 	
-	TEST_ASSERT_TRUE_MESSAGE(publish("mvp/test1", "MVP testing"), "Publish failed");
+	TEST_ASSERT_TRUE_MESSAGE(mvp_publish("mvp/test1", "MVP testing"), "Publish failed");
 	sleep_ms(500);
 	
 	TEST_ASSERT_TRUE_MESSAGE(disable(), "Disconnect failed");
@@ -231,9 +227,9 @@ void mvp_test_b()
 void mvp_test_c()
 {
 	TEST_ASSERT_TRUE_MESSAGE(enable(0, "JAMKtestMVP3"), "Connect failed");
-	TEST_ASSERT_TRUE_MESSAGE(subscribe("mvp/test2"), "Subscribe failed");
+	TEST_ASSERT_TRUE_MESSAGE(mvp_subscribe("mvp/test2"), "Subscribe failed");
 
-	TEST_ASSERT_TRUE_MESSAGE(publish("mvp/test2", "MVP testing"), "Publish failed");
+	TEST_ASSERT_TRUE_MESSAGE(mvp_publish("mvp/test2", "MVP testing"), "Publish failed");
 	sleep_ms(500);
 	TEST_ASSERT_TRUE_MESSAGE(mvp_subscribe_test2, "Subscribe test failed - invalid content");
 	TEST_ASSERT_TRUE_MESSAGE(disable(), "Disconnect failed");
@@ -244,17 +240,17 @@ void mvp_test_d()
 {
 	TEST_ASSERT_TRUE_MESSAGE(enable(4, "JAMKtestMVP4"), "Connect failed");
 
-	TEST_ASSERT_TRUE_MESSAGE(subscribe("mvp/test2"), "Subscribe failed");
+	TEST_ASSERT_TRUE_MESSAGE(mvp_subscribe("mvp/test2"), "Subscribe failed");
 	for (int i = 0; i < (60 /* * 60 * 20 */) ; i++) {
 		if ( i % 10 == 0) {
 			mvp_subscribe_test2 = false;
-			TEST_ASSERT_TRUE_MESSAGE(publish("mvp/test2", "MVP testing"), "Publish failed");
+			TEST_ASSERT_TRUE_MESSAGE(mvp_publish("mvp/test2", "MVP testing"), "Publish failed");
 			sleep_ms(1000);
 			TEST_ASSERT_TRUE_MESSAGE(mvp_subscribe_test2, "Subscribe test failed - invalid content");
 		} else {
 			sleep_ms(1000);
 		}
-		TEST_ASSERT_TRUE_MESSAGE(keepalive(1000), "keepalive failed")
+		TEST_ASSERT_TRUE_MESSAGE(mvp_keepalive(1000), "keepalive failed")
 	}
 
 	TEST_ASSERT_TRUE_MESSAGE(disable(), "Disconnect failed");
@@ -266,7 +262,7 @@ void mvp_test_d()
  ****************************************************************************************/
 int main(void)
 {  
-    UnityBegin("State Maschine");
+    UnityBegin("MVP tests");
     unsigned int tCntr = 1;
 
 	RUN_TEST(mvp_test_a,                    tCntr++);

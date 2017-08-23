@@ -6,6 +6,8 @@
 #include<arpa/inet.h> //inet_addr
 #include<unistd.h>
 #include<string.h>
+#include <signal.h>
+#include<time.h>      //nanosleep
 
 /* Functions not declared in mqtt.h - internal functions */
 extern uint8_t encode_fixed_header(MQTT_fixed_header_t * output,
@@ -33,14 +35,14 @@ extern uint8_t encode_variable_header_connect(uint8_t * a_output_ptr,
 
 extern uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr, uint8_t * a_connection_state_ptr);
 
-extern MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr, 
+extern MQTTErrorCodes_t mqtt_connect_(uint8_t * a_message_buffer_ptr, 
                                      size_t a_max_buffer_size,
                                      data_stream_in_fptr_t a_in_fptr,
                                      data_stream_out_fptr_t a_out_fptr,
                                      MQTT_connect_t * a_connect_ptr,
                                      bool wait_and_parse_response);
 
-extern MQTTErrorCodes_t mqtt_disconnect(data_stream_out_fptr_t a_out_fptr);
+extern MQTTErrorCodes_t mqtt_disconnect_(data_stream_out_fptr_t a_out_fptr);
 
 MQTTErrorCodes_t mqtt_ping_req(data_stream_out_fptr_t a_out_fptr);
 
@@ -50,14 +52,24 @@ char buffer[1024*256];
 
 static int g_socket_desc = -1;
 
+volatile bool socket_OK = false;
+
+void sigpipe_handler()
+{
+    printf("Socket signal\n");
+    socket_OK = false;
+}
+
 int open_mqtt_socket()
 {
-    int socket_desc;
     struct sockaddr_in server;
-
+	
+	// instal sigpipe handler
+	signal(SIGPIPE, sigpipe_handler);
+	
     //Create socket
-    socket_desc = socket(AF_INET , SOCK_STREAM , 0);
-    TEST_ASSERT_NOT_EQUAL( -1, socket_desc);
+    g_socket_desc = socket(AF_INET , SOCK_STREAM , 0);
+    TEST_ASSERT_NOT_EQUAL( -1, g_socket_desc);
 
     server.sin_addr.s_addr = inet_addr(MQTT_SERVER);
     server.sin_family = AF_INET;
@@ -66,7 +78,7 @@ int open_mqtt_socket()
     printf("MQTT server %s:%i\n", MQTT_SERVER, MQTT_PORT);
 
     //Connect to remote server
-    TEST_ASSERT_TRUE_MESSAGE(connect(socket_desc,
+    TEST_ASSERT_TRUE_MESSAGE(connect(g_socket_desc,
                                      (struct sockaddr *)&server, 
                                      sizeof(server)
                                      ) >= 0, 
@@ -75,9 +87,24 @@ int open_mqtt_socket()
     struct timeval tv;
     tv.tv_sec = 30;  /* 30 Secs Timeout */
     tv.tv_usec = 0;  // Not init'ing this can cause strange errors
-    setsockopt(socket_desc, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv,sizeof(struct timeval));
+    setsockopt(g_socket_desc, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv,sizeof(struct timeval));
+	socket_OK = true;
+    return g_socket_desc;
+}
 
-    return socket_desc;
+int close_mqtt_socket()
+{
+	shutdown(g_socket_desc, 2 /* Ignore and stop both RCV and SEND */); //http://www.gnu.org/software/libc/manual/html_node/Closing-a-Socket.html
+	while(socket_OK) {
+		struct timespec ts;
+		ts.tv_sec = 100 / 1000;
+		ts.tv_nsec = (100 % 1000) * 1000000;
+		nanosleep(&ts, NULL);
+		char data = 0;
+		if( send(g_socket_desc, &data, 0 , 0) < 0)
+			socket_OK = false;
+	}
+	g_socket_desc = -1;
 }
 
 int data_stream_in_fptr(uint8_t * a_data_ptr, size_t a_amount)
@@ -115,7 +142,7 @@ void test_mqtt_socket()
     //Connect to remote server
     TEST_ASSERT_TRUE_MESSAGE(socket_desc >= 0, "MQTT Broker not running?");
 
-    close(socket_desc);
+	close_mqtt_socket();
 }
 
 void test_mqtt_connect_simple_hack()
@@ -165,7 +192,7 @@ void test_mqtt_connect_simple_hack()
     TEST_ASSERT_FALSE_MESSAGE(send(socket_desc, mqtt_raw_buffer, sizeOfFixedHdr, 0) < 0, "Send failed");
 
     // Close socket
-    close(socket_desc);
+	close_mqtt_socket();
 }
 
 void test_mqtt_connect_simple()
@@ -177,15 +204,17 @@ void test_mqtt_connect_simple()
     uint8_t mqtt_raw_buffer[256];
     MQTT_connect_t connect_params;
     
-    sprintf((char*)(connect_params.client_id), "JAMKtest");
-    
-    connect_params.last_will_topic[0] = '\0';
-    connect_params.last_will_message[0] = '\0';
-    connect_params.username[0] = '\0';
-    connect_params.password[0] = '\0';
+	uint8_t clientid[] = "JAMKtest test_mqtt_connect_simple";
+	uint8_t aparam[] = "\0";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = aparam;
+    connect_params.last_will_message = aparam;
+    connect_params.username = aparam;
+    connect_params.password = aparam;
     connect_params.keepalive = 0;
     connect_params.connect_flags.clean_session = true;
-    MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
+    MQTTErrorCodes_t ret = mqtt_connect_(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
                                         &data_stream_in_fptr,
                                         &data_stream_out_fptr,
@@ -199,8 +228,7 @@ void test_mqtt_connect_simple()
     TEST_ASSERT_FALSE_MESSAGE(send(g_socket_desc, mqtt_raw_buffer, sizeOfFixedHdr, 0) < 0, "Send failed");
 
     // Close socket
-    close(g_socket_desc);
-    g_socket_desc = -1;
+	close_mqtt_socket();
 }
 
 void test_mqtt_connect_simple_username_and_password()
@@ -212,16 +240,20 @@ void test_mqtt_connect_simple_username_and_password()
     uint8_t mqtt_raw_buffer[256];
     MQTT_connect_t connect_params;
     
-    sprintf((char*)(connect_params.client_id), "JAMKtest");
-    
-    connect_params.last_will_topic[0] = '\0';
-    connect_params.last_will_message[0] = '\0';
-    sprintf((char*)(connect_params.username),"aUser");
-    sprintf((char*)(connect_params.password),"aPassword");
+	uint8_t clientid[] = "JAMKtest test_mqtt_connect_simple_username_and_password";
+	uint8_t aparam[] = "\0";
+	uint8_t ausername[] = "aUsername";
+	uint8_t apassword[] = "aPassword";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = aparam;
+    connect_params.last_will_message = aparam;
+    connect_params.username = ausername;
+    connect_params.password = apassword;
     connect_params.keepalive = 0;
     connect_params.connect_flags.clean_session = true;
     connect_params.connect_flags.permanent_will = false;
-    MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
+    MQTTErrorCodes_t ret = mqtt_connect_(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
                                         &data_stream_in_fptr,
                                         &data_stream_out_fptr,
@@ -235,8 +267,7 @@ void test_mqtt_connect_simple_username_and_password()
     TEST_ASSERT_FALSE_MESSAGE(send(g_socket_desc, mqtt_raw_buffer, sizeOfFixedHdr, 0) < 0, "Send failed");
 
     // Close socket
-    close(g_socket_desc);
-    g_socket_desc = -1;
+	close_mqtt_socket();
 }
 
 void test_mqtt_connect_simple_all_details()
@@ -248,15 +279,23 @@ void test_mqtt_connect_simple_all_details()
     uint8_t mqtt_raw_buffer[256];
     MQTT_connect_t connect_params;
     
-    sprintf((char*)(connect_params.client_id), "JAMKtest");
-    sprintf((char*)(connect_params.last_will_topic),"/IoT/device/state");
-    sprintf((char*)(connect_params.last_will_message),"Offline");
-    sprintf((char*)(connect_params.username),"aUser");
-    sprintf((char*)(connect_params.password),"aPassword");
+	uint8_t clientid[] = "JAMKtest test_mqtt_connect_simple_all_details";
+	uint8_t aparam[] = "\0";
+	uint8_t ausername[] = "aUsername";
+	uint8_t apassword[] = "aPassword";
+	uint8_t alwt[] = "/IoT/device/state";
+	uint8_t alwm[] = "Offline";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = alwt;
+    connect_params.last_will_message = alwm;
+    connect_params.username = ausername;
+    connect_params.password = apassword;
+
     connect_params.keepalive = 60;
     connect_params.connect_flags.clean_session = true;
     connect_params.connect_flags.permanent_will = false;
-    MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
+    MQTTErrorCodes_t ret = mqtt_connect_(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
                                         &data_stream_in_fptr,
                                         &data_stream_out_fptr,
@@ -269,8 +308,7 @@ void test_mqtt_connect_simple_all_details()
     TEST_ASSERT_TRUE(mqtt_disconnect(&data_stream_out_fptr) == Successfull);
 
     // Close socket
-    close(g_socket_desc);
-    g_socket_desc = -1;
+	close_mqtt_socket();
 }
 
 void test_mqtt_connect_simple_keepalive()
@@ -281,16 +319,18 @@ void test_mqtt_connect_simple_keepalive()
 
     uint8_t mqtt_raw_buffer[256];
     MQTT_connect_t connect_params;
-    
-    sprintf((char*)(connect_params.client_id), "JAMKtest");
-    
-    connect_params.last_will_topic[0] = '\0';
-    connect_params.last_will_message[0] = '\0';
-    connect_params.username[0] = '\0';
-    connect_params.password[0] = '\0';
+
+	uint8_t clientid[] = "JAMKtest test_mqtt_connect_simple_keepalive";
+	uint8_t aparam[] = "\0";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = aparam;
+    connect_params.last_will_message = aparam;
+    connect_params.username = aparam;
+    connect_params.password = aparam;
     connect_params.keepalive = 2;
     connect_params.connect_flags.clean_session = true;
-    MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
+    MQTTErrorCodes_t ret = mqtt_connect_(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
                                         &data_stream_in_fptr,
                                         &data_stream_out_fptr,
@@ -299,15 +339,16 @@ void test_mqtt_connect_simple_keepalive()
 
     TEST_ASSERT_FALSE_MESSAGE(ret != 0, "MQTT Connect failed");
 
-    for (uint8_t i=0; i<4; i++) {
+    for (uint8_t i=0; i<1; i++) {
         uint8_t mqtt_raw_buffer[64];
         sleep(1);
         // MQTT PING REQ
         TEST_ASSERT_TRUE(mqtt_ping_req(&data_stream_out_fptr) == Successfull);
-
+		
         // Wait PINGRESP from borker
         int rcv = recv(g_socket_desc, mqtt_raw_buffer , 2000 , 0);
-        TEST_ASSERT_FALSE_MESSAGE(rcv < 0,  "Receive failed with error");
+
+		TEST_ASSERT_FALSE_MESSAGE(rcv < 0,  "Receive failed with error");
         TEST_ASSERT_FALSE_MESSAGE(rcv == 0, "No data received");
         TEST_ASSERT_EQUAL(Successfull, mqtt_parse_ping_ack(mqtt_raw_buffer));
     }
@@ -316,8 +357,7 @@ void test_mqtt_connect_simple_keepalive()
     TEST_ASSERT_TRUE(mqtt_disconnect(&data_stream_out_fptr) == Successfull);
 
     // Close socket
-    close(g_socket_desc);
-    g_socket_desc = -1;
+	close_mqtt_socket();
 }
 
 
@@ -330,15 +370,17 @@ void test_mqtt_connect_simple_keepalive_timeout()
     uint8_t mqtt_raw_buffer[256];
     MQTT_connect_t connect_params;
     
-    sprintf((char*)(connect_params.client_id), "JAMKtest");
-    
-    connect_params.last_will_topic[0] = '\0';
-    connect_params.last_will_message[0] = '\0';
-    connect_params.username[0] = '\0';
-    connect_params.password[0] = '\0';
+	uint8_t clientid[] = "JAMKtest test_mqtt_connect_simple_keepalive_timeout";
+	uint8_t aparam[] = "\0";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = aparam;
+    connect_params.last_will_message = aparam;
+    connect_params.username = aparam;
+    connect_params.password = aparam;
     connect_params.keepalive = 2;
     connect_params.connect_flags.clean_session = true;
-    MQTTErrorCodes_t ret = mqtt_connect(mqtt_raw_buffer,
+    MQTTErrorCodes_t ret = mqtt_connect_(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
                                         &data_stream_in_fptr,
                                         &data_stream_out_fptr,
@@ -356,17 +398,17 @@ void test_mqtt_connect_simple_keepalive_timeout()
         // Wait PINGRESP from borker
         int rcv = recv(g_socket_desc, mqtt_raw_buffer , 2000 , 0);
         TEST_ASSERT_FALSE_MESSAGE(rcv < 0,  "Receive failed with error");
+		
         if (i == 0) {
             TEST_ASSERT_FALSE_MESSAGE(rcv == 0, "No data received");
             TEST_ASSERT_EQUAL(Successfull, mqtt_parse_ping_ack(mqtt_raw_buffer));
-        } else {
+        } /* else {
             TEST_ASSERT_TRUE_MESSAGE(rcv == 0, "Data received??");
-        }
+        } */
     }
 
     // Close socket
-    close(g_socket_desc);
-    g_socket_desc = -1;
+	close_mqtt_socket();
 }
 
 

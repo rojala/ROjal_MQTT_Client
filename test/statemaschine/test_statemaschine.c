@@ -6,6 +6,7 @@
 #include<arpa/inet.h> //inet_addr
 #include<unistd.h>
 #include<string.h>
+#include <signal.h>
 #include<time.h>     //nanosleep
 
 extern MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr);
@@ -21,15 +22,28 @@ void sleep_ms(int milliseconds)
     nanosleep(&ts, NULL);
 }
 
+volatile bool socket_OK = false;
+
+void sigpipe_handler()
+{
+    printf("Socket signal\n");
+    socket_OK = false;
+}
+
 int open_mqtt_socket()
 {
     int socket_desc;
     struct sockaddr_in server;
 
+	// instal sigpipe handler
+	signal(SIGPIPE, sigpipe_handler);
+
     //Create socket
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
     TEST_ASSERT_NOT_EQUAL( -1, socket_desc);
 
+	socket_OK = true;
+	
     server.sin_addr.s_addr = inet_addr(MQTT_SERVER);
     server.sin_family = AF_INET;
     server.sin_port = htons(MQTT_PORT);
@@ -49,13 +63,29 @@ int open_mqtt_socket()
     return socket_desc;
 }
 
+
+int close_mqtt_socket()
+{
+	shutdown(g_socket_desc, 2 /* Ignore and stop both RCV and SEND */); //http://www.gnu.org/software/libc/manual/html_node/Closing-a-Socket.html
+	while(socket_OK) {
+		struct timespec ts;
+		ts.tv_sec = 100 / 1000;
+		ts.tv_nsec = (100 % 1000) * 1000000;
+		nanosleep(&ts, NULL);
+		char data = 0;
+		if( send(g_socket_desc, &data, 0 , 0) < 0)
+			socket_OK = false;
+	}
+	g_socket_desc = -1;
+}
+
 int data_stream_in_fptr(uint8_t * a_data_ptr, size_t a_amount)
 {
     if (g_socket_desc <= 0)
         g_socket_desc = open_mqtt_socket();
 
     if (g_socket_desc > 0) {
-        int ret = recv(g_socket_desc, a_data_ptr, a_amount, /*MSG_NOSIGNAL*/0);
+        int ret = recv(g_socket_desc, a_data_ptr, a_amount, 0);
         printf("Socket in  -> %iB\n", ret);
         return ret;
     } else {
@@ -67,20 +97,12 @@ int data_stream_out_fptr(uint8_t * a_data_ptr, size_t a_amount)
 {
     if (g_socket_desc <= 0)
         g_socket_desc = open_mqtt_socket();
-    
-    printf("g_socket_desc:%i\n", g_socket_desc);
+
     if (g_socket_desc > 0) {
-        printf("Socket out -> %lu\n", a_amount);
-        int ret = send(g_socket_desc, a_data_ptr, a_amount, /*MSG_NOSIGNAL */0);
-        if (ret != a_amount) {
-            printf("Socket did not send enought data out\n");
-            return -1;
-        }
+        int ret = send(g_socket_desc, a_data_ptr, a_amount, 0);
         printf("Socket out -> %iB\n", ret);
         return ret;
     } else {
-        printf("Socket failed %i\n", g_socket_desc);
-        g_socket_desc = 0;
         return -1;
     }
 }
@@ -130,11 +152,15 @@ void test_sm_connect_manual_ack()
                                   &action);
 
     MQTT_connect_t connect_params;
-    sprintf((char*)(connect_params.client_id), "JAMKtest");
-    connect_params.last_will_topic[0] = '\0';
-    connect_params.last_will_message[0] = '\0';
-    connect_params.username[0] = '\0';
-    connect_params.password[0] = '\0';
+    
+	uint8_t clientid[] = "JAMKtest test_sm_connect_manual_ack";
+	uint8_t aparam[] = "\0";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = aparam;
+    connect_params.last_will_message = aparam;
+    connect_params.username = aparam;
+    connect_params.password = aparam;
     connect_params.keepalive = 0;
     connect_params.connect_flags.clean_session = true;
 
@@ -163,8 +189,7 @@ void test_sm_connect_manual_ack()
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
     
-    close(g_socket_desc);
-    g_socket_desc = 0;
+	close_mqtt_socket();
 }
 
 void test_sm_connect_auto_ack()
@@ -184,11 +209,14 @@ void test_sm_connect_auto_ack()
                                   &action);
 
     MQTT_connect_t connect_params;
-    sprintf((char*)(connect_params.client_id), "JAMKtest2");
-    connect_params.last_will_topic[0] = '\0';
-    connect_params.last_will_message[0] = '\0';
-    connect_params.username[0] = '\0';
-    connect_params.password[0] = '\0';
+	uint8_t clientid[] = "JAMKtest test_sm_connect_auto_ack";
+	uint8_t aparam[] = "\0";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = aparam;
+    connect_params.last_will_message = aparam;
+    connect_params.username = aparam;
+    connect_params.password = aparam;
     connect_params.keepalive = 0;
     connect_params.connect_flags.clean_session = true;
 
@@ -224,8 +252,7 @@ void test_sm_connect_auto_ack()
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
 
-    close(g_socket_desc);
-    g_socket_desc = 0;
+	close_mqtt_socket();
 }
 
 void test_sm_connect_auto_ack_keepalive()
@@ -245,11 +272,14 @@ void test_sm_connect_auto_ack_keepalive()
                                   &action);
 
     MQTT_connect_t connect_params;
-    sprintf((char*)(connect_params.client_id), "JAMKtest3");
-    connect_params.last_will_topic[0] = '\0';
-    connect_params.last_will_message[0] = '\0';
-    connect_params.username[0] = '\0';
-    connect_params.password[0] = '\0';
+	uint8_t clientid[] = "JAMKtest test_sm_connect_auto_ack_keepalive";
+	uint8_t aparam[] = "\0";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = aparam;
+    connect_params.last_will_message = aparam;
+    connect_params.username = aparam;
+    connect_params.password = aparam;
     connect_params.keepalive = 2;
     connect_params.connect_flags.clean_session = true;
 
@@ -320,8 +350,7 @@ void test_sm_connect_auto_ack_keepalive()
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
 
-    close(g_socket_desc);
-    g_socket_desc = 0;
+	close_mqtt_socket();
 }
 
 
@@ -342,11 +371,14 @@ void test_sm_publish()
                                   &action);
 
     MQTT_connect_t connect_params;
-    sprintf((char*)(connect_params.client_id), "JAMKtest4");
-    connect_params.last_will_topic[0] = '\0';
-    connect_params.last_will_message[0] = '\0';
-    connect_params.username[0] = '\0';
-    connect_params.password[0] = '\0';
+	uint8_t clientid[] = "JAMKtest test_sm_publish";
+	uint8_t aparam[] = "\0";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = aparam;
+    connect_params.last_will_message = aparam;
+    connect_params.username = aparam;
+    connect_params.password = aparam;
     connect_params.keepalive = 2;
     connect_params.connect_flags.clean_session = true;
 
@@ -411,8 +443,7 @@ void test_sm_publish()
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
 
-    close(g_socket_desc);
-    g_socket_desc = 0;
+	close_mqtt_socket();
 }
 
 
@@ -435,11 +466,14 @@ void test_sm_subscrbe()
                                   &action);
 
     MQTT_connect_t connect_params;
-    sprintf((char*)(connect_params.client_id), "JAMKtest5");
-    connect_params.last_will_topic[0] = '\0';
-    connect_params.last_will_message[0] = '\0';
-    connect_params.username[0] = '\0';
-    connect_params.password[0] = '\0';
+	uint8_t clientid[] = "JAMKtest test_sm_subscrbe";
+	uint8_t aparam[] = "\0";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = aparam;
+    connect_params.last_will_message = aparam;
+    connect_params.username = aparam;
+    connect_params.password = aparam;
     connect_params.keepalive = 0;
     connect_params.connect_flags.clean_session = true;
 
@@ -518,8 +552,7 @@ void test_sm_subscrbe()
 	while( g_auto_state_subscribe_completed == false)
 		sleep_ms(10);
 
-    close(g_socket_desc);
-    g_socket_desc = 0;
+	close_mqtt_socket();
 }
 
 
@@ -542,11 +575,14 @@ void test_sm_subscrbe_with_receive()
                                   &action);
 
     MQTT_connect_t connect_params;
-    sprintf((char*)(connect_params.client_id), "JAMKtest5");
-    connect_params.last_will_topic[0] = '\0';
-    connect_params.last_will_message[0] = '\0';
-    connect_params.username[0] = '\0';
-    connect_params.password[0] = '\0';
+	uint8_t clientid[] = "JAMKtest test_sm_subscrbe_with_receive";
+	uint8_t aparam[] = "\0";
+	
+    connect_params.client_id = clientid;
+    connect_params.last_will_topic = aparam;
+    connect_params.last_will_message = aparam;
+    connect_params.username = aparam;
+    connect_params.password = aparam;
     connect_params.keepalive = 0;
     connect_params.connect_flags.clean_session = true;
 
@@ -671,8 +707,7 @@ void test_sm_subscrbe_with_receive()
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
 	
-    close(g_socket_desc);
-    g_socket_desc = 0;
+	close_mqtt_socket();
 }
 /****************************************************************************************
  * TEST main                                                                            *

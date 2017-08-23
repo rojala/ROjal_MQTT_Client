@@ -46,12 +46,12 @@ static MQTT_shared_data_t * g_shared_data = NULL;
  * @param wait_and_parse_response [in] when true, function will wait connak response from the broker and parse it.
  * @return pointer to input buffer from where next header starts to. NULL in case of failure.
  */
-MQTTErrorCodes_t mqtt_connect(uint8_t                * a_message_buffer_ptr,
-                              size_t                   a_max_buffer_size,
-                              data_stream_in_fptr_t    a_in_fptr,
-                              data_stream_out_fptr_t   a_out_fptr,
-                              MQTT_connect_t         * a_connect_ptr,
-                              bool                     wait_and_parse_response);
+MQTTErrorCodes_t mqtt_connect_(uint8_t                * a_message_buffer_ptr,
+                               size_t                   a_max_buffer_size,
+                               data_stream_in_fptr_t    a_in_fptr,
+                               data_stream_out_fptr_t   a_out_fptr,
+                               MQTT_connect_t         * a_connect_ptr,
+                               bool                     wait_and_parse_response);
 
 /**
  * Fill connect parameters
@@ -77,7 +77,7 @@ uint8_t * mqtt_connect_fill(uint8_t        * a_message_buffer_ptr,
  * @param a_out_fptr [in] output stream callback function.
  * @return error code @see MQTTErrorCodes_t.
  */
-MQTTErrorCodes_t mqtt_disconnect(data_stream_out_fptr_t a_out_fptr);
+MQTTErrorCodes_t mqtt_disconnect_(data_stream_out_fptr_t a_out_fptr);
 
 /**
  * Send PING request.
@@ -842,12 +842,12 @@ uint8_t * mqtt_add_payload_parameters(uint8_t * a_output_ptr,
  * See <a href="http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf">Chapter 3.1 CONNECT      *
  *                                                                                                          *
  ************************************************************************************************************/
-MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr,
-                              size_t a_max_buffer_size,
-                              data_stream_in_fptr_t a_in_fptr,
-                              data_stream_out_fptr_t a_out_fptr,
-                              MQTT_connect_t * a_connect_ptr,
-                              bool wait_and_parse_response)
+MQTTErrorCodes_t mqtt_connect_(uint8_t * a_message_buffer_ptr,
+                               size_t a_max_buffer_size,
+                               data_stream_in_fptr_t a_in_fptr,
+                               data_stream_out_fptr_t a_out_fptr,
+                               MQTT_connect_t * a_connect_ptr,
+                               bool wait_and_parse_response)
 {
     /* Ensure that pointers are valid */
     if (NULL != a_out_fptr) {
@@ -880,6 +880,10 @@ MQTTErrorCodes_t mqtt_connect(uint8_t * a_message_buffer_ptr,
                 } else {
                     return ServerUnavailabe;
                 }
+            } else {
+                mqtt_printf("%s %u mqtt_connect_fill failed\n",
+                            __FILE__,
+                            __LINE__);
             }
         }
     }
@@ -944,32 +948,33 @@ uint8_t * mqtt_connect_fill(uint8_t        * a_message_buffer_ptr,
     uint8_t * payload_ptr = a_message_buffer_ptr + sizeof(MQTT_fixed_header_t) + sizeof(MQTT_variable_header_connect_t);
 
     /* Fill client ID into payload. It must exists and it must be first parameter */
-    if ((0 < strlen(a_connect_ptr->client_id)) &&
-        (MQTT_CLIENT_ID_SIZE > strlen(a_connect_ptr->client_id))) {
+    if (0 < mqtt_strlen(a_connect_ptr->client_id)) {
 
         payload_ptr = mqtt_add_payload_parameters(payload_ptr,
-                                                  strlen(a_connect_ptr->client_id),
+                                                  mqtt_strlen(a_connect_ptr->client_id),
                                                   a_connect_ptr->client_id);
 
     } else {
         * a_ouput_size_ptr = 0;
+        mqtt_printf("%s %u ClientID not defined %s\n",
+            __FILE__,
+            __LINE__,
+            a_connect_ptr->client_id);
         return NULL;
     }
 
     /* Add Last Will topic and message to the payload, if present */
-    if ((0 < strlen(a_connect_ptr->last_will_topic)) &&
-        (MQTT_CONNECT_LAST_WILL_TOPIC_SIZE > strlen(a_connect_ptr->last_will_topic)) &&
-        (0 < strlen(a_connect_ptr->last_will_message)) &&
-        (MQTT_CONNECT_LAST_WILL_MESSAGE_SIZE > strlen(a_connect_ptr->last_will_message))) {
+    if ((0 < mqtt_strlen(a_connect_ptr->last_will_topic)) &&
+        (0 < mqtt_strlen(a_connect_ptr->last_will_message))) {
 
         a_connect_ptr->connect_flags.last_will = true;
 
         payload_ptr = mqtt_add_payload_parameters(payload_ptr,
-                                                  strlen(a_connect_ptr->last_will_topic),
+                                                  mqtt_strlen(a_connect_ptr->last_will_topic),
                                                   a_connect_ptr->last_will_topic);
 
         payload_ptr = mqtt_add_payload_parameters(payload_ptr,
-                                                  strlen(a_connect_ptr->last_will_message),
+                                                  mqtt_strlen(a_connect_ptr->last_will_message),
                                                   a_connect_ptr->last_will_message);
     } else {
         a_connect_ptr->connect_flags.last_will = false;
@@ -977,26 +982,24 @@ uint8_t * mqtt_connect_fill(uint8_t        * a_message_buffer_ptr,
     }
 
     /* Add username to the payload, if present */
-    if ((0 < strlen(a_connect_ptr->username)) &&
-        (MQTT_USERNAME_SIZE > strlen(a_connect_ptr->username))) {
+    if (0 < mqtt_strlen(a_connect_ptr->username)) {
 
         a_connect_ptr->connect_flags.username = true;
 
         payload_ptr = mqtt_add_payload_parameters(payload_ptr,
-                                                  strlen(a_connect_ptr->username),
+                                                  mqtt_strlen(a_connect_ptr->username),
                                                   a_connect_ptr->username);
     } else {
         a_connect_ptr->connect_flags.username = false;
     }
 
     /* Add password to the payload, if present */
-    if ((0 < strlen(a_connect_ptr->password)) &&
-        (MQTT_PASSWORD_SIZE > strlen(a_connect_ptr->password))) {
+    if (0 < mqtt_strlen(a_connect_ptr->password)){
 
         a_connect_ptr->connect_flags.password = true;
 
         payload_ptr = mqtt_add_payload_parameters(payload_ptr,
-                                                  strlen(a_connect_ptr->password),
+                                                  mqtt_strlen(a_connect_ptr->password),
                                                   a_connect_ptr->password);
     } else {
         a_connect_ptr->connect_flags.password = false;
@@ -1089,7 +1092,7 @@ MQTTErrorCodes_t mqtt_connect_parse_ack(uint8_t * a_message_in_ptr)
  * See <a href="http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf">Chapter 3.1 CONNECT      *
  *                                                                                                          *
  ************************************************************************************************************/
-MQTTErrorCodes_t mqtt_disconnect(data_stream_out_fptr_t a_out_fptr)
+MQTTErrorCodes_t mqtt_disconnect_(data_stream_out_fptr_t a_out_fptr)
 {
     if (NULL != a_out_fptr) {
         /* Form and send fixed header with DISCONNECT command ID.
@@ -1262,9 +1265,9 @@ MQTTErrorCodes_t mqtt_parse_input_stream(uint8_t  * a_input_ptr,
 
 /************************************************************************************************************
  *                                                                                                          *
- * \subsection API MQTT API function                                                                        *
+ * \subsection API MQTT API functions                                                                       *
  *                                                                                                          *
- * External software components uses services of this library through this API function.                    *
+ * External software components uses services of this library through these API functions.                  *
  *                                                                                                          *
  ************************************************************************************************************/
 MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
@@ -1290,7 +1293,7 @@ MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
             case ACTION_DISCONNECT:
                 if ((g_shared_data != NULL) &&
                     (g_shared_data->state != STATE_DISCONNECTED))
-                    status = mqtt_disconnect(g_shared_data->out_fptr);
+                    status = mqtt_disconnect_(g_shared_data->out_fptr);
                 else
                     status = NoConnection;
                 break;
@@ -1299,7 +1302,7 @@ MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
                 if ((NULL != g_shared_data) &&
                     (NULL != a_action_ptr)) {
                     if (g_shared_data->state == STATE_DISCONNECTED) {
-                        status = mqtt_connect(g_shared_data->buffer,
+                        status = mqtt_connect_(g_shared_data->buffer,
                                               g_shared_data->buffer_size,
                                               NULL,
                                               g_shared_data->out_fptr,
@@ -1363,6 +1366,7 @@ MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
                                                      g_shared_data->mqtt_packet_cntr++)) {
                             g_shared_data->time_to_next_ping_in_ms = g_shared_data->keepalive_in_ms;
                             status = Successfull;
+                            g_shared_data->subscribe_status = true; 
                         }
                 }
                 break;
@@ -1415,4 +1419,163 @@ MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
         }
 
     return status;
+}
+
+
+bool mqtt_connect(char                   * a_client_name_ptr,
+                  uint16_t                 a_keepalive_timeout,
+                  uint8_t                * a_username_str_ptr,
+                  uint8_t                * a_password_str_ptr,
+                  uint8_t                * a_last_will_topic_str_ptr,
+                  uint8_t                * a_last_will_str_ptr,
+                  MQTT_shared_data_t     * mqtt_shared_data_ptr,
+                  uint8_t                * a_output_buffer_ptr,
+                  size_t                   a_output_buffer_size,
+                  bool                     a_clean_session,
+                  data_stream_out_fptr_t   a_out_write_fptr,
+                  connected_fptr_t         a_connected_fptr,
+                  subscrbe_fptr_t          a_subscribe_fptr,
+                  uint8_t                  a_timeout_in_sec)
+{
+    /* Initialize MQTT */
+    if (NULL != mqtt_shared_data_ptr) {
+        g_shared_data = mqtt_shared_data_ptr;
+        g_shared_data->buffer            = a_output_buffer_ptr;
+        g_shared_data->buffer_size       = a_output_buffer_size;
+
+        g_shared_data->out_fptr          = a_out_write_fptr;
+        g_shared_data->connected_cb_fptr = a_connected_fptr;
+        g_shared_data->subscribe_cb_fptr = a_subscribe_fptr;
+
+        MQTT_action_data_t action;
+        action.action_argument.shared_ptr = g_shared_data;
+        MQTTErrorCodes_t state = mqtt(ACTION_INIT,
+                                      &action);
+
+
+
+        /* Connect to broker */
+        if (Successfull == state) {
+            mqtt_printf("MQTT Initialized\n");
+
+            /* Connect to broker */
+            MQTT_connect_t connect_params;
+            connect_params.client_id = a_client_name_ptr;
+            connect_params.last_will_topic   = a_last_will_topic_str_ptr;
+            connect_params.last_will_message = a_last_will_str_ptr;
+            connect_params.username  = a_username_str_ptr;
+            connect_params.password  = a_password_str_ptr;
+            connect_params.keepalive = a_keepalive_timeout;
+            connect_params.connect_flags.clean_session = a_clean_session;
+
+            action.action_argument.connect_ptr = &connect_params;
+
+            state = mqtt(ACTION_CONNECT,
+                         &action);
+
+            if (Successfull == state) {
+                mqtt_printf("MQTT Connecting\n");
+
+                uint8_t timeout = (a_timeout_in_sec * 10);
+                while (timeout != 0 &&
+                       g_shared_data->state != STATE_CONNECTED) {
+                    timeout--;
+                    mqtt_sleep(0.1);
+                }
+            }
+        }
+    }
+
+    return (g_shared_data->state == STATE_CONNECTED);
+}
+
+bool mqtt_disconnect()
+{
+	return (Successfull == mqtt(ACTION_DISCONNECT, NULL));
+}
+
+bool mqtt_publish(char * a_topic_ptr,
+                  size_t a_topic_size,
+                  char * a_msg_ptr,
+                  size_t a_msg_size)
+{
+    MQTT_publish_t publish;
+    publish.flags.dup = false;
+    publish.flags.retain = false;
+    publish.flags.qos = QoS0;
+
+    publish.topic_ptr = (uint8_t*)a_topic_ptr;
+    publish.topic_length = a_topic_size;
+
+    publish.message_buffer_ptr = (uint8_t*)a_msg_ptr;
+    publish.message_buffer_size = a_msg_size;
+
+    MQTT_action_data_t action;
+    action.action_argument.publish_ptr = &publish;
+
+    MQTTErrorCodes_t state = mqtt(ACTION_PUBLISH,
+                                  &action);
+
+    if (Successfull == state)
+        return true;
+
+    return false;
+}
+
+
+bool mqtt_subscribe(char               * a_topic,
+                    uint8_t              a_timeout_in_sec)
+{
+    MQTTErrorCodes_t state = InvalidArgument;
+
+    if (NULL != g_shared_data) {
+        MQTT_subscribe_t subscribe;
+        subscribe.qos = QoS0;
+        
+        subscribe.topic_ptr = (uint8_t*) a_topic;
+        subscribe.topic_length = strlen(a_topic);
+
+        MQTT_action_data_t action;
+        action.action_argument.subscribe_ptr = &subscribe;
+
+        state = mqtt(ACTION_SUBSCRIBE, &action);
+
+        if (Successfull == state) {
+            /* Do not perform responce chek when timeout is set to zero. */
+            if (0 < a_timeout_in_sec) {
+                uint8_t timeout = (a_timeout_in_sec * 10);
+                while ((timeout != 0) && 
+                       (g_shared_data->subscribe_status == false)) {
+                    timeout--;
+                    mqtt_sleep(0.1);
+                }
+                if (g_shared_data->subscribe_status == true)
+                    state = Successfull;
+            }
+        }        
+        g_shared_data->subscribe_status = false;
+	}
+	return (Successfull == state);
+}
+
+bool mqtt_keepalive(uint32_t a_duration_in_ms)
+{
+	MQTT_action_data_t ap;
+    ap.action_argument.epalsed_time_in_ms = a_duration_in_ms;
+    MQTTErrorCodes_t state = mqtt(ACTION_KEEPALIVE, &ap);
+    return ((Successfull == state) || 
+            (PingNotSend  == state));
+}
+
+bool mqtt_receive(uint8_t * a_data, size_t a_amount)
+{
+	/* Parse input messages */
+	MQTT_input_stream_t input;
+	input.data = a_data;
+	input.size_of_data = (uint32_t)a_amount;
+	
+	MQTT_action_data_t action;
+	action.action_argument.input_stream_ptr = &input;
+
+	return (Successfull == mqtt(ACTION_PARSE_INPUT_STREAM, &action));
 }

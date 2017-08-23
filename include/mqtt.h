@@ -28,14 +28,9 @@
 #include <stdbool.h> // bool
 #include <stdio.h>   // printf
 #include <string.h>  // memcpy
+#include <unistd.h>  // sleep
 
 #define MQTT_MAX_MESSAGE_SIZE                   (0x80000000 - 1)
-#define MQTT_CONNECT_LAST_WILL_TOPIC_SIZE       256
-#define MQTT_CONNECT_LAST_WILL_MESSAGE_SIZE     128
-#define MQTT_USERNAME_SIZE                      32
-#define MQTT_PASSWORD_SIZE                      32
-#define MQTT_CLIENT_ID_SIZE                     24
-
 
 /**
  * @brief MQTT connection state
@@ -172,11 +167,11 @@ typedef struct MQTT_connect
     MQTT_fixed_header_t fixed_header;
     MQTT_variable_header_connect_flags_t connect_flags;
     uint16_t keepalive;
-    uint8_t last_will_topic[MQTT_CONNECT_LAST_WILL_TOPIC_SIZE];
-    uint8_t last_will_message[MQTT_CONNECT_LAST_WILL_MESSAGE_SIZE];
-    uint8_t username[MQTT_USERNAME_SIZE];
-    uint8_t password[MQTT_PASSWORD_SIZE];
-    uint8_t client_id[MQTT_CLIENT_ID_SIZE];
+    uint8_t * last_will_topic;
+    uint8_t * last_will_message;
+    uint8_t * username;
+    uint8_t * password;
+    uint8_t * client_id;
 } MQTT_connect_t;
 
 /****************************************************************************************
@@ -218,6 +213,7 @@ typedef struct MQTT_shared_data
     uint32_t mqtt_packet_cntr;            /* MQTT packet indentifer counter             */
     int32_t keepalive_in_ms;              /* Keepalive timer value - connect message    */
     int32_t time_to_next_ping_in_ms;      /* Keepalive counter to track next ping       */
+	bool subscribe_status;                /* Internal subscribe status flag             */
 } MQTT_shared_data_t;
 
 /****************************************************************************************
@@ -300,6 +296,10 @@ void hex_print(uint8_t * a_data_ptr, size_t a_size);
  */
 #define mqtt_memset memset
 
+#define mqtt_sleep sleep
+
+#define mqtt_strlen strlen
+
 /****************************************************************************************
  * @brief API                                                                           *
  ****************************************************************************************/
@@ -314,5 +314,34 @@ void hex_print(uint8_t * a_data_ptr, size_t a_size);
  */
 MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
                       MQTT_action_data_t * a_action_ptr);
+                      
+bool mqtt_connect(char                   * a_client_name_ptr,
+                  uint16_t                 a_keepalive_timeout,
+                  uint8_t                * a_username_str_ptr,
+                  uint8_t                * a_password_str_ptr,
+                  uint8_t                * a_last_will_topic_str_ptr,
+                  uint8_t                * a_last_will_str_ptr,
+                  MQTT_shared_data_t     * mqtt_shared_data_ptr,
+                  uint8_t                * a_output_buffer_ptr,
+                  size_t                   a_output_buffer_size,
+                  bool                     a_clean_session,
+                  data_stream_out_fptr_t   a_out_write_fptr,
+                  connected_fptr_t         a_connected_fptr,
+                  subscrbe_fptr_t          a_subscribe_fptr,
+                  uint8_t                  a_timeout_in_sec);
+                  
+bool mqtt_disconnect();
+
+bool mqtt_publish(char * a_topic_ptr,
+                  size_t a_topic_size,
+                  char * a_msg_ptr,
+                  size_t a_msg_size);
+
+bool mqtt_subscribe(char               * a_topic,
+                    uint8_t              a_timeout_in_sec);
+
+bool mqtt_keepalive(uint32_t a_duration_in_ms);
+
+bool mqtt_receive(uint8_t * a_data, size_t a_amount);
 
 #endif /* MQTT_H */
