@@ -10,6 +10,7 @@
 #include<time.h>      //nanosleep
 
 #include "socket_read_write.h"
+#include "help.h"
 
 static uint8_t mqtt_send_buffer[1024*10];
 static MQTT_shared_data_t mqtt_shared_data;
@@ -17,21 +18,13 @@ static bool g_mqtt_connected = false;
 static bool g_mqtt_subscribed = false;
 static bool mvp_subscribe_test2 = false;
 
-void sleep_ms(int milliseconds)
-{
-    struct timespec ts;
-    ts.tv_sec = milliseconds / 1000;
-    ts.tv_nsec = (milliseconds % 1000) * 1000000;
-    nanosleep(&ts, NULL);
-}
-
-
 void connected_cb(MQTTErrorCodes_t a_status)
 {
-    if (Successfull == a_status)
+    if (Successfull == a_status) {
         printf("Connected CB SUCCESSFULL\n");
-    else
+	} else {
         printf("Connected CB FAIL %i\n", a_status);
+	}
 	g_mqtt_connected = true;
 }
 
@@ -43,10 +36,10 @@ void subscrbe_cb(MQTTErrorCodes_t a_status,
 {
 	if (Successfull == a_status) {
         printf("Subscribed CB SUCCESSFULL\n");
-		for (int i = 0; i < a_topic_len; i++)
+		for (uint16_t i = 0; i < a_topic_len; i++)
 			printf("%c", a_topic_ptr[i]);
 		printf(": ");
-		for (int i = 0; i < a_data_len; i++)
+		for (uint32_t i = 0; i < a_data_len; i++)
 			printf("%c", a_data_ptr[i]);
 		printf("\n");
 		
@@ -101,7 +94,7 @@ bool enable(uint16_t a_keepalive_timeout, char * clientName)
 		
 		/* Connect to broker */
 		MQTT_connect_t connect_params;
-		connect_params.client_id = clientName;
+		connect_params.client_id = (uint8_t*)clientName;
 		uint8_t aparam[] = "\0";
 		connect_params.last_will_topic = aparam;
 		connect_params.last_will_message = aparam;
@@ -109,6 +102,8 @@ bool enable(uint16_t a_keepalive_timeout, char * clientName)
 		connect_params.password = aparam;
 		connect_params.keepalive = a_keepalive_timeout;
 		connect_params.connect_flags.clean_session = true;
+	    connect_params.connect_flags.last_will_qos  = 0;
+    	connect_params.connect_flags.permanent_will = false;
 
 		action.action_argument.connect_ptr = &connect_params;
 
@@ -121,15 +116,16 @@ bool enable(uint16_t a_keepalive_timeout, char * clientName)
 		uint8_t timeout = 50;
 		while (timeout != 0 && g_mqtt_connected == false) {
 			timeout--;
-			sleep_ms(100);
+			asleep(100);
 		}
 		
 		printf("MQTT connack or timeout %i %i\n", g_mqtt_connected, timeout);
 		if (g_mqtt_connected == false)
 			ret = false;
+	} else {
+		printf("Socket failed\n");
 	}
 	g_mqtt_connected = false;
-	//sleep_ms(1000);
 	return ret;
 }
 
@@ -143,7 +139,6 @@ bool disable()
 	
 	printf("Close socket\n");
 	TEST_ASSERT_TRUE_MESSAGE(stop_reading_thread(), "SOCKET exit failed");
-	//sleep_ms(2000);
 	return true;
 }
 
@@ -160,6 +155,9 @@ bool mvp_publish(char * a_topic, char * a_msg)
     publish.message_buffer_ptr = (uint8_t*)a_msg;
     publish.message_buffer_size = strlen(a_msg);
 
+	publish.output_buffer_ptr = NULL;
+    publish.output_buffer_size = 0;
+	
 	MQTT_action_data_t action;
     action.action_argument.publish_ptr = &publish;
 
@@ -190,7 +188,7 @@ bool mvp_subscribe(char * a_topic)
 	uint8_t timeout = 50;
 	while (timeout != 0 && g_mqtt_subscribed == false) {
 		timeout--;
-		sleep_ms(100);
+		asleep(100);
 	}
 	if (g_mqtt_subscribed == true)
 		ret = true;
@@ -204,7 +202,7 @@ bool mvp_keepalive(uint32_t a_duration_in_ms)
 {
 	MQTT_action_data_t ap;
     ap.action_argument.epalsed_time_in_ms = a_duration_in_ms;
-    MQTTErrorCodes_t state = mqtt(ACTION_KEEPALIVE, &ap);
+    mqtt(ACTION_KEEPALIVE, &ap);
     return true;
 }
 
@@ -219,7 +217,7 @@ void mvp_test_b()
 	TEST_ASSERT_TRUE_MESSAGE(enable(0, "JAMKtestMVP2"), "Connect failed");
 	
 	TEST_ASSERT_TRUE_MESSAGE(mvp_publish("mvp/test1", "MVP testing"), "Publish failed");
-	sleep_ms(500);
+	asleep(500);
 	
 	TEST_ASSERT_TRUE_MESSAGE(disable(), "Disconnect failed");
 }
@@ -230,7 +228,7 @@ void mvp_test_c()
 	TEST_ASSERT_TRUE_MESSAGE(mvp_subscribe("mvp/test2"), "Subscribe failed");
 
 	TEST_ASSERT_TRUE_MESSAGE(mvp_publish("mvp/test2", "MVP testing"), "Publish failed");
-	sleep_ms(500);
+	asleep(500);
 	TEST_ASSERT_TRUE_MESSAGE(mvp_subscribe_test2, "Subscribe test failed - invalid content");
 	TEST_ASSERT_TRUE_MESSAGE(disable(), "Disconnect failed");
 	mvp_subscribe_test2 = false;
@@ -245,10 +243,10 @@ void mvp_test_d()
 		if ( i % 10 == 0) {
 			mvp_subscribe_test2 = false;
 			TEST_ASSERT_TRUE_MESSAGE(mvp_publish("mvp/test2", "MVP testing"), "Publish failed");
-			sleep_ms(1000);
+			asleep(1000);
 			TEST_ASSERT_TRUE_MESSAGE(mvp_subscribe_test2, "Subscribe test failed - invalid content");
 		} else {
-			sleep_ms(1000);
+			asleep(1000);
 		}
 		TEST_ASSERT_TRUE_MESSAGE(mvp_keepalive(1000), "keepalive failed")
 	}

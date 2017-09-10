@@ -113,7 +113,7 @@ void test_encode_fixed_header_size_invalid()
     uint8_t expectedSize[] = {0x00, 0x00, 0x00, 0x00};
     test_encode_fixed_header_size(0, 0x80000000, expectedSize);
     test_encode_fixed_header_size(0, -1, expectedSize);
-    test_encode_fixed_header_size(0, (size_t)0x80000000000, expectedSize);
+    test_encode_fixed_header_size(0, (size_t)0xF0000000, expectedSize);
 }
 
 /****************************************************************************************

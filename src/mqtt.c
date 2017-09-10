@@ -1,7 +1,7 @@
 /************************************************************************************************************
  * \subsection ROjal_MQTT_Client_Src MQTT Client source code                                                *
  *                                                                                                          *
- * Copyright 2017 Rami Ojala / JAMK                                                                         *
+ * Copyright 2017 Rami Ojala / JAMK (K5643)                                                                 *
  *                                                                                                          *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of                          *
  * this software and associated documentation files (the "Software"), to deal in the                        *
@@ -194,7 +194,7 @@ void decode_variable_header_suback(uint8_t          * a_input_ptr,
 uint8_t * decode_variable_header_publish(uint8_t        *  a_input_ptr,
                                          uint8_t        ** a_topic_out_ptr,
                                          MQTTQoSLevel_t    a_qos,
-                                         uint8_t        *  a_topic_length);
+                                         uint16_t       *  a_topic_length);
 
 /**
  * Decode complete publish message.
@@ -214,9 +214,9 @@ bool decode_publish(uint8_t        *  a_message_in_ptr,
                     uint32_t          a_size_of_msg,
                     MQTTQoSLevel_t    a_qos,
                     uint8_t        ** a_topic_out_ptr,
-                    uint8_t        *  a_topic_length_out_ptr,
+                    uint16_t       *  a_topic_length_out_ptr,
                     uint8_t        ** a_out_message_ptr,
-                    uint8_t        *  a_out_message_size_ptr);
+                    uint32_t       *  a_out_message_size_ptr);
 
 
 /************************************************************************************************************
@@ -529,21 +529,22 @@ uint8_t * decode_fixed_header(uint8_t           * a_input_ptr,
  *                                                                                                          *
  ************************************************************************************************************/
 bool encode_publish(data_stream_out_fptr_t a_out_fptr,
-                    uint8_t * a_output_ptr,
-                    uint32_t a_output_size,
-                    bool a_retain,
-                    MQTTQoSLevel_t a_qos,
-                    bool a_dup,
-                    uint8_t * topic_ptr,
-                    uint16_t topic_size,
-                    uint16_t packet_identifier,
-                    uint8_t * message_ptr,
-                    uint32_t message_size)
+                    uint8_t         * a_output_ptr,
+                    uint32_t          a_output_size,
+                    bool              a_retain,
+                    MQTTQoSLevel_t    a_qos,
+                    bool              a_dup,
+                    uint8_t         * topic_ptr,
+                    uint16_t          topic_size,
+                    uint16_t          packet_identifier,
+                    uint8_t         * message_ptr,
+                    uint32_t          message_size)
 {
     bool ret = false;
 
     if ((NULL != a_output_ptr) &&
-        (NULL != topic_ptr)) {
+        (NULL != topic_ptr) &&
+        (sizeof(MQTT_fixed_header_t) < a_output_size)) /* Buffer size is valid */ {
 
         uint32_t sizeOfMsg = message_size + topic_size + sizeof(uint16_t);
 
@@ -557,11 +558,8 @@ bool encode_publish(data_stream_out_fptr_t a_out_fptr,
                                                 PUBLISH,
                                                 sizeOfMsg);
 
-
-        hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
-
-
-        if (0 < sizeOfMsg) {
+        if ((0 < sizeOfMsg) &&
+            (sizeOfMsg < a_output_size)) /* Output buffer is big enough */ {
             /* First 2 bytes are topic_size */
             a_output_ptr[sizeOfMsg++] = ((topic_size >> 8) & 0xFF);
             a_output_ptr[sizeOfMsg++] = ((topic_size >> 0) & 0xFF);
@@ -581,7 +579,7 @@ bool encode_publish(data_stream_out_fptr_t a_out_fptr,
             sizeOfMsg +=message_size;
 
             // Send CONNECT message to the broker without flags
-            if (a_out_fptr(a_output_ptr, sizeOfMsg) == sizeOfMsg)
+            if (a_out_fptr(a_output_ptr, sizeOfMsg) == (int)sizeOfMsg)
                 ret = true;
             else
                 mqtt_printf("%s %u Sending publish failed %u",
@@ -611,13 +609,13 @@ bool encode_publish(data_stream_out_fptr_t a_out_fptr,
  * See <a href="http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf">Chapter 3.3 PUBLISH      *
  *                                                                                                          *
  ************************************************************************************************************/
-bool decode_publish(uint8_t * a_message_in_ptr,
-                    uint32_t a_size_of_msg,
-                    MQTTQoSLevel_t a_qos,
-                    uint8_t ** a_topic_out_ptr,
-                    uint8_t * a_topic_length_out_ptr,
-                    uint8_t ** a_out_message_ptr,
-                    uint8_t * a_out_message_size_ptr)
+bool decode_publish(uint8_t         * a_message_in_ptr,
+                    uint32_t          a_size_of_msg,
+                    MQTTQoSLevel_t    a_qos,
+                    uint8_t        ** a_topic_out_ptr,
+                    uint16_t        * a_topic_length_out_ptr,
+                    uint8_t        ** a_out_message_ptr,
+                    uint32_t        * a_out_message_size_ptr)
 {
     bool ret = false;
 
@@ -664,10 +662,10 @@ bool decode_publish(uint8_t * a_message_in_ptr,
     return ret;
 }
 
-uint8_t * decode_variable_header_publish(uint8_t * a_input_ptr,
-                                         uint8_t ** a_topic_out_ptr,
-                                         MQTTQoSLevel_t a_qos,
-                                         uint8_t * a_topic_length_out_ptr)
+uint8_t * decode_variable_header_publish(uint8_t         * a_input_ptr,
+                                         uint8_t        ** a_topic_out_ptr,
+                                         MQTTQoSLevel_t    a_qos,
+                                         uint16_t        * a_topic_length_out_ptr)
 {
     uint8_t * next_hdr = NULL;
 
@@ -734,20 +732,15 @@ bool encode_subscribe(data_stream_out_fptr_t   a_out_fptr,
                                         SUBSCRIBE,
                                         sizeOfMsg);
 
-        hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
-
         /* IF fixed header encode succeeded then parse reset of the message. */
-        if (0 < sizeOfMsg) {
-
-            hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
+        if ((0 < sizeOfMsg) &&
+            (sizeOfMsg < a_output_size)) {
 
             if (1 /*a_topic_qos > QoS0*/) {
                 /* Copy packet identifier - valid only in QoS 1 and 2 levels */
                 a_output_ptr[sizeOfMsg++] = ((a_packet_identifier >> 8) & 0xFF);
                 a_output_ptr[sizeOfMsg++] = ((a_packet_identifier >> 0) & 0xFF);
             }
-
-            hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
 
             /* Copy topic length */
             a_output_ptr[sizeOfMsg++] = ((a_topic_size >> 8) & 0xFF);
@@ -760,10 +753,8 @@ bool encode_subscribe(data_stream_out_fptr_t   a_out_fptr,
             /* QoS for subscribe */
             a_output_ptr[sizeOfMsg++] = a_topic_qos;
 
-            hex_print((uint8_t *) a_output_ptr, sizeOfMsg);
-
             /* Send SUBSCRIBE message */
-            if (a_out_fptr(a_output_ptr, sizeOfMsg) == sizeOfMsg)
+            if (a_out_fptr(a_output_ptr, sizeOfMsg) == (int)sizeOfMsg)
                 ret = true;
             else
                 mqtt_printf("%s %u Sending SUBSCRIBE failed %u,\n",
@@ -793,13 +784,13 @@ bool encode_subscribe(data_stream_out_fptr_t   a_out_fptr,
  * See <a href="http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf">Chapter 3.9 SUBACK       *
  *                                                                                                          *
  ************************************************************************************************************/
-void decode_variable_header_suback(uint8_t * a_input_ptr, MQTTErrorCodes_t * a_subscribe_state_ptr)
+void decode_variable_header_suback(uint8_t          * a_input_ptr,
+                                   MQTTErrorCodes_t * a_subscribe_state_ptr)
 {
     * a_subscribe_state_ptr = -1;
     if (NULL != a_input_ptr)
     {
         * a_subscribe_state_ptr = *(a_input_ptr + 4); /*5th byte contains return value  */
-        mqtt_printf("%s %u SUBACK %x\n", __FILE__, __LINE__, * a_subscribe_state_ptr);
     } else {
         mqtt_printf("%s %u NULL argument given %p\n",
                     __FILE__,
@@ -842,12 +833,12 @@ uint8_t * mqtt_add_payload_parameters(uint8_t * a_output_ptr,
  * See <a href="http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.pdf">Chapter 3.1 CONNECT      *
  *                                                                                                          *
  ************************************************************************************************************/
-MQTTErrorCodes_t mqtt_connect_(uint8_t * a_message_buffer_ptr,
-                               size_t a_max_buffer_size,
-                               data_stream_in_fptr_t a_in_fptr,
-                               data_stream_out_fptr_t a_out_fptr,
-                               MQTT_connect_t * a_connect_ptr,
-                               bool wait_and_parse_response)
+MQTTErrorCodes_t mqtt_connect_(uint8_t                * a_message_buffer_ptr,
+                               size_t                   a_max_buffer_size,
+                               data_stream_in_fptr_t    a_in_fptr,
+                               data_stream_out_fptr_t   a_out_fptr,
+                               MQTT_connect_t         * a_connect_ptr,
+                               bool                     wait_and_parse_response)
 {
     /* Ensure that pointers are valid */
     if (NULL != a_out_fptr) {
@@ -861,13 +852,13 @@ MQTTErrorCodes_t mqtt_connect_(uint8_t * a_message_buffer_ptr,
                                                   &msg_size);
             if (NULL != msg_ptr) {
                 // Send CONNECT message to the broker without flags
-                if (a_out_fptr(msg_ptr, msg_size) == msg_size)
+                if (a_out_fptr(msg_ptr, msg_size) == (int)msg_size)
                 {
                     if ((NULL != a_in_fptr) &&
                         (true == wait_and_parse_response))
                     {
                         // Wait response from borker
-                        int rcv = a_in_fptr(a_message_buffer_ptr, sizeof(MQTT_fixed_header_t));
+                        int rcv = a_in_fptr(a_message_buffer_ptr, a_max_buffer_size);
                         if (0 < rcv) {
                             return mqtt_connect_parse_ack(a_message_buffer_ptr);
                         } else
@@ -948,10 +939,10 @@ uint8_t * mqtt_connect_fill(uint8_t        * a_message_buffer_ptr,
     uint8_t * payload_ptr = a_message_buffer_ptr + sizeof(MQTT_fixed_header_t) + sizeof(MQTT_variable_header_connect_t);
 
     /* Fill client ID into payload. It must exists and it must be first parameter */
-    if (0 < mqtt_strlen(a_connect_ptr->client_id)) {
+    if (0 < mqtt_strlen((char*)(a_connect_ptr->client_id))) {
 
         payload_ptr = mqtt_add_payload_parameters(payload_ptr,
-                                                  mqtt_strlen(a_connect_ptr->client_id),
+                                                  mqtt_strlen((char*)(a_connect_ptr->client_id)),
                                                   a_connect_ptr->client_id);
 
     } else {
@@ -964,17 +955,17 @@ uint8_t * mqtt_connect_fill(uint8_t        * a_message_buffer_ptr,
     }
 
     /* Add Last Will topic and message to the payload, if present */
-    if ((0 < mqtt_strlen(a_connect_ptr->last_will_topic)) &&
-        (0 < mqtt_strlen(a_connect_ptr->last_will_message))) {
+    if ((0 < mqtt_strlen((char*)(a_connect_ptr->last_will_topic))) &&
+        (0 < mqtt_strlen((char*)(a_connect_ptr->last_will_message)))) {
 
         a_connect_ptr->connect_flags.last_will = true;
 
         payload_ptr = mqtt_add_payload_parameters(payload_ptr,
-                                                  mqtt_strlen(a_connect_ptr->last_will_topic),
+                                                  mqtt_strlen((char*)(a_connect_ptr->last_will_topic)),
                                                   a_connect_ptr->last_will_topic);
 
         payload_ptr = mqtt_add_payload_parameters(payload_ptr,
-                                                  mqtt_strlen(a_connect_ptr->last_will_message),
+                                                  mqtt_strlen((char*)(a_connect_ptr->last_will_message)),
                                                   a_connect_ptr->last_will_message);
     } else {
         a_connect_ptr->connect_flags.last_will = false;
@@ -982,24 +973,24 @@ uint8_t * mqtt_connect_fill(uint8_t        * a_message_buffer_ptr,
     }
 
     /* Add username to the payload, if present */
-    if (0 < mqtt_strlen(a_connect_ptr->username)) {
+    if (0 < mqtt_strlen((char*)(a_connect_ptr->username))) {
 
         a_connect_ptr->connect_flags.username = true;
 
         payload_ptr = mqtt_add_payload_parameters(payload_ptr,
-                                                  mqtt_strlen(a_connect_ptr->username),
+                                                  mqtt_strlen((char*)(a_connect_ptr->username)),
                                                   a_connect_ptr->username);
     } else {
         a_connect_ptr->connect_flags.username = false;
     }
 
     /* Add password to the payload, if present */
-    if (0 < mqtt_strlen(a_connect_ptr->password)){
+    if (0 < mqtt_strlen((char*)(a_connect_ptr->password))) {
 
         a_connect_ptr->connect_flags.password = true;
 
         payload_ptr = mqtt_add_payload_parameters(payload_ptr,
-                                                  mqtt_strlen(a_connect_ptr->password),
+                                                  mqtt_strlen((char*)(a_connect_ptr->password)),
                                                   a_connect_ptr->password);
     } else {
         a_connect_ptr->connect_flags.password = false;
@@ -1053,8 +1044,6 @@ uint8_t * decode_variable_header_conack(uint8_t * a_input_ptr,
     if (NULL != a_input_ptr)
     {
         * a_connection_state_ptr = *(a_input_ptr + 1); /*2nd byte contains return value  */
-
-        mqtt_printf("%s %u CONNACK %x\n", __FILE__, __LINE__, * a_connection_state_ptr);
     } else {
         mqtt_printf("%s %u NULL argument given %p\n",
                     __FILE__,
@@ -1180,7 +1169,6 @@ MQTTErrorCodes_t mqtt_parse_input_stream(uint8_t  * a_input_ptr,
 
     /* Decode fixed header */
     uint8_t * next_header_ptr = decode_fixed_header(a_input_ptr, &dup, &qos, &retain, &type, a_message_size_ptr);
-    mqtt_printf("%s %u mqtt_parse_input_stream %i %p %x\n", __FILE__, __LINE__, type, a_input_ptr, *a_message_size_ptr);
 
     /* Check message type to and take appropriate action. */
     switch (type)
@@ -1189,15 +1177,12 @@ MQTTErrorCodes_t mqtt_parse_input_stream(uint8_t  * a_input_ptr,
             {
                 uint8_t connection_state;
                 decode_variable_header_conack(next_header_ptr, &connection_state);
-                mqtt_printf("Conn ack %i\n", connection_state);
                 if (Successfull == connection_state) {
                     g_shared_data->state = STATE_CONNECTED;
                     status = Successfull;
-                    mqtt_printf("connected\n");
                 } else {
                     g_shared_data->state = STATE_DISCONNECTED;
                     status = Successfull;
-                    mqtt_printf("Disconnected\n");
                 }
                 if (NULL != g_shared_data->connected_cb_fptr)
                     g_shared_data->connected_cb_fptr(connection_state);
@@ -1217,10 +1202,9 @@ MQTTErrorCodes_t mqtt_parse_input_stream(uint8_t  * a_input_ptr,
                                    * a_message_size_ptr,
                                    qos,
                                    &topic_ptr,
-                                   (uint8_t *) &topic_length,
+                                   &topic_length,
                                    &message_ptr,
-                                   (uint8_t *) &message_size)){
-
+                                   &message_size)){
                     if (NULL != g_shared_data->subscribe_cb_fptr)
                         g_shared_data->subscribe_cb_fptr(Successfull,
                                                          message_ptr,
@@ -1275,8 +1259,6 @@ MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
 {
         MQTTErrorCodes_t status = InvalidArgument;
 
-        mqtt_printf("Action %i\n", a_action);
-
         switch (a_action)
         {
             case ACTION_INIT:
@@ -1303,11 +1285,11 @@ MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
                     (NULL != a_action_ptr)) {
                     if (g_shared_data->state == STATE_DISCONNECTED) {
                         status = mqtt_connect_(g_shared_data->buffer,
-                                              g_shared_data->buffer_size,
-                                              NULL,
-                                              g_shared_data->out_fptr,
-                                              a_action_ptr->action_argument.connect_ptr,
-                                              false);
+                                               g_shared_data->buffer_size,
+                                               NULL,
+                                               g_shared_data->out_fptr,
+                                               a_action_ptr->action_argument.connect_ptr,
+                                               false);
 
                         if (Successfull == status) {
                             if (0 != a_action_ptr->action_argument.connect_ptr->keepalive) {
@@ -1331,11 +1313,17 @@ MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
                 if ((NULL != g_shared_data) &&
                     (g_shared_data->state == STATE_CONNECTED) &&
                     (NULL != a_action_ptr)) {
-                    hex_print((uint8_t *) a_action_ptr->action_argument.publish_ptr->message_buffer_ptr, a_action_ptr->action_argument.publish_ptr->message_buffer_size);
-
-                        if (true == encode_publish(g_shared_data->out_fptr,
-                                                   g_shared_data->buffer,
-                                                   g_shared_data->buffer_size,
+                        uint8_t * message_buffer = g_shared_data->buffer;
+                        uint32_t  message_buffer_size = g_shared_data->buffer_size;
+                        /* Use special buffer, not the shared one */
+                        if ((NULL != a_action_ptr->action_argument.publish_ptr->output_buffer_ptr) &&
+                           (0 < a_action_ptr->action_argument.publish_ptr->output_buffer_size)){
+                               message_buffer = a_action_ptr->action_argument.publish_ptr->output_buffer_ptr;
+                               message_buffer_size = a_action_ptr->action_argument.publish_ptr->output_buffer_size;
+                           }
+                       if (true == encode_publish(g_shared_data->out_fptr,
+                                                   message_buffer,
+                                                   message_buffer_size,
                                                    a_action_ptr->action_argument.publish_ptr->flags.retain,
                                                    a_action_ptr->action_argument.publish_ptr->flags.qos,
                                                    false, /* a_action_ptr->action_argument.publish_ptr->flags.dup,*/
@@ -1347,6 +1335,8 @@ MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
 
                             g_shared_data->time_to_next_ping_in_ms = g_shared_data->keepalive_in_ms;
                             status = Successfull;
+                        } else {
+                            mqtt_printf("Publish encode failed\n");
                         }
                 }
                 break;
@@ -1366,7 +1356,7 @@ MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
                                                      g_shared_data->mqtt_packet_cntr++)) {
                             g_shared_data->time_to_next_ping_in_ms = g_shared_data->keepalive_in_ms;
                             status = Successfull;
-                            g_shared_data->subscribe_status = true; 
+                            g_shared_data->subscribe_status = true;
                         }
                 }
                 break;
@@ -1377,19 +1367,16 @@ MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
 
                         if (INT32_MIN != g_shared_data->keepalive_in_ms) {
 
-                            if (g_shared_data->time_to_next_ping_in_ms > a_action_ptr->action_argument.epalsed_time_in_ms)
-                                g_shared_data->time_to_next_ping_in_ms -= a_action_ptr->action_argument.epalsed_time_in_ms;
+                            if (g_shared_data->time_to_next_ping_in_ms > (int32_t) a_action_ptr->action_argument.epalsed_time_in_ms)
+                                g_shared_data->time_to_next_ping_in_ms -= (int32_t) a_action_ptr->action_argument.epalsed_time_in_ms;
                             else
                                 g_shared_data->time_to_next_ping_in_ms = 0;
-
-                            printf("keepalive %i %i\n", a_action_ptr->action_argument.epalsed_time_in_ms, g_shared_data->time_to_next_ping_in_ms);
 
                             if ( 0 >= g_shared_data->time_to_next_ping_in_ms) {
                                 status = mqtt_ping_req(g_shared_data->out_fptr);
                                 if (status != Successfull) {
                                     mqtt_printf("keep alive failed %u\n", status);
                                 } else {
-                                    mqtt_printf("keepalive\n");
                                     g_shared_data->time_to_next_ping_in_ms = g_shared_data->keepalive_in_ms;
                                 }
                             } else {
@@ -1460,7 +1447,7 @@ bool mqtt_connect(char                   * a_client_name_ptr,
 
             /* Connect to broker */
             MQTT_connect_t connect_params;
-            connect_params.client_id = a_client_name_ptr;
+            connect_params.client_id = (uint8_t *)a_client_name_ptr;
             connect_params.last_will_topic   = a_last_will_topic_str_ptr;
             connect_params.last_will_message = a_last_will_str_ptr;
             connect_params.username  = a_username_str_ptr;
@@ -1474,8 +1461,6 @@ bool mqtt_connect(char                   * a_client_name_ptr,
                          &action);
 
             if (Successfull == state) {
-                mqtt_printf("MQTT Connecting\n");
-
                 uint8_t timeout = (a_timeout_in_sec * 10);
                 while (timeout != 0 &&
                        g_shared_data->state != STATE_CONNECTED) {
@@ -1491,13 +1476,29 @@ bool mqtt_connect(char                   * a_client_name_ptr,
 
 bool mqtt_disconnect()
 {
-	return (Successfull == mqtt(ACTION_DISCONNECT, NULL));
+    return (Successfull == mqtt(ACTION_DISCONNECT, NULL));
 }
 
 bool mqtt_publish(char * a_topic_ptr,
                   size_t a_topic_size,
                   char * a_msg_ptr,
                   size_t a_msg_size)
+{
+    /* Use internal shared buffer for sending */
+    return mqtt_publish_buf(a_topic_ptr,
+                            a_topic_size,
+                            a_msg_ptr,
+                            a_msg_size,
+                            NULL,
+                            0);
+}
+
+bool mqtt_publish_buf(char    * a_topic_ptr,
+                      size_t    a_topic_size,
+                      char    * a_msg_ptr,
+                      size_t    a_msg_size,
+                      uint8_t * a_output_buffer_ptr,
+                      uint32_t  a_output_buffer_size)
 {
     MQTT_publish_t publish;
     publish.flags.dup = false;
@@ -1509,6 +1510,9 @@ bool mqtt_publish(char * a_topic_ptr,
 
     publish.message_buffer_ptr = (uint8_t*)a_msg_ptr;
     publish.message_buffer_size = a_msg_size;
+
+    publish.output_buffer_ptr = a_output_buffer_ptr;
+    publish.output_buffer_size = a_output_buffer_size;
 
     MQTT_action_data_t action;
     action.action_argument.publish_ptr = &publish;
@@ -1522,18 +1526,21 @@ bool mqtt_publish(char * a_topic_ptr,
     return false;
 }
 
-
-bool mqtt_subscribe(char               * a_topic,
-                    uint8_t              a_timeout_in_sec)
+bool mqtt_subscribe(char     * a_topic,
+                    uint16_t   a_topic_size,
+                    uint8_t    a_timeout_in_sec)
 {
     MQTTErrorCodes_t state = InvalidArgument;
 
-    if (NULL != g_shared_data) {
+    if ((NULL != g_shared_data) &&
+	    (NULL != a_topic) &&
+		(0 < a_topic_size)) {
+
         MQTT_subscribe_t subscribe;
         subscribe.qos = QoS0;
-        
+
         subscribe.topic_ptr = (uint8_t*) a_topic;
-        subscribe.topic_length = strlen(a_topic);
+        subscribe.topic_length = a_topic_size;
 
         MQTT_action_data_t action;
         action.action_argument.subscribe_ptr = &subscribe;
@@ -1544,7 +1551,7 @@ bool mqtt_subscribe(char               * a_topic,
             /* Do not perform responce chek when timeout is set to zero. */
             if (0 < a_timeout_in_sec) {
                 uint8_t timeout = (a_timeout_in_sec * 10);
-                while ((timeout != 0) && 
+                while ((timeout != 0) &&
                        (g_shared_data->subscribe_status == false)) {
                     timeout--;
                     mqtt_sleep(0.1);
@@ -1552,30 +1559,30 @@ bool mqtt_subscribe(char               * a_topic,
                 if (g_shared_data->subscribe_status == true)
                     state = Successfull;
             }
-        }        
+        }
         g_shared_data->subscribe_status = false;
-	}
-	return (Successfull == state);
+    }
+    return (Successfull == state);
 }
 
 bool mqtt_keepalive(uint32_t a_duration_in_ms)
 {
-	MQTT_action_data_t ap;
+    MQTT_action_data_t ap;
     ap.action_argument.epalsed_time_in_ms = a_duration_in_ms;
     MQTTErrorCodes_t state = mqtt(ACTION_KEEPALIVE, &ap);
-    return ((Successfull == state) || 
+    return ((Successfull == state) ||
             (PingNotSend  == state));
 }
 
 bool mqtt_receive(uint8_t * a_data, size_t a_amount)
 {
-	/* Parse input messages */
-	MQTT_input_stream_t input;
-	input.data = a_data;
-	input.size_of_data = (uint32_t)a_amount;
-	
-	MQTT_action_data_t action;
-	action.action_argument.input_stream_ptr = &input;
+    /* Parse input messages */
+    MQTT_input_stream_t input;
+    input.data = a_data;
+    input.size_of_data = (uint32_t)a_amount;
 
-	return (Successfull == mqtt(ACTION_PARSE_INPUT_STREAM, &action));
+    MQTT_action_data_t action;
+    action.action_argument.input_stream_ptr = &input;
+
+    return (Successfull == mqtt(ACTION_PARSE_INPUT_STREAM, &action));
 }

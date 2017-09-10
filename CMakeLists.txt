@@ -6,9 +6,11 @@ SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 
 include(CTest)
 
-SET(CMAGE_CFLAGS "-g -O3 -Wall -W -NODEBUG")
-SET(CMAGE_CXXFLAGS "-g -O3 -Wall -W -NODEBUG")
-SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+add_definitions("-DBUILD_DEFAULT_C_LIBS=1")
+
+set(CMAKE_C_FLAGS "-std=gnu11 -Os -fno-strict-aliasing -g -Wall -W -fstack-protector-all -Wextra -ftrapv")
+
+SET(CMAKE_EXE_LINKER_FLAGS "${CMAGE_CFLAGS} -Wl,-Map=out.map")
 
 add_subdirectory(src)
 add_subdirectory(test)

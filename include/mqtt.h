@@ -1,5 +1,5 @@
 /************************************************************************************************************
- * Copyright 2017 Rami Ojala / JAMK                                                                         *
+ * Copyright 2017 Rami Ojala / JAMK (K5643)                                                                 *
  *                                                                                                          *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of                          *
  * this software and associated documentation files (the "Software"), to deal in the                        *
@@ -23,12 +23,12 @@
 
 #ifndef MQTT_H
 #define MQTT_H
+
+#include "mqtt_adaptation.h"
+
 #include <stdint.h>  // uint
 #include <stddef.h>  // size_t
 #include <stdbool.h> // bool
-#include <stdio.h>   // printf
-#include <string.h>  // memcpy
-#include <unistd.h>  // sleep
 
 #define MQTT_MAX_MESSAGE_SIZE                   (0x80000000 - 1)
 
@@ -120,7 +120,7 @@ typedef enum MQTTQoSLevel
 
 
 /****************************************************************************************
- * @brief data structures                                                               *
+ * @section data structures                                                             *
  * Values and bitfields to fill MQTT messages correctly                                 *
  ****************************************************************************************/
 
@@ -137,7 +137,7 @@ typedef struct struct_flags_and_type
 typedef struct MQTT_fixed_header
 {
     struct_flags_and_type_t flagsAndType;
-    uint8_t length[4];
+    uint8_t                 length[4];
 } MQTT_fixed_header_t;
 
 /* VaARIABLE HEADER */
@@ -164,31 +164,31 @@ typedef struct MQTT_variable_header_connect
 /* CONNECT */
 typedef struct MQTT_connect
 {
-    MQTT_fixed_header_t fixed_header;
-    MQTT_variable_header_connect_flags_t connect_flags;
-    uint16_t keepalive;
-    uint8_t * last_will_topic;
-    uint8_t * last_will_message;
-    uint8_t * username;
-    uint8_t * password;
-    uint8_t * client_id;
+    MQTT_fixed_header_t                    fixed_header;
+    MQTT_variable_header_connect_flags_t   connect_flags;
+    uint16_t                               keepalive;
+    uint8_t                              * last_will_topic;
+    uint8_t                              * last_will_message;
+    uint8_t                              * username;
+    uint8_t                              * password;
+    uint8_t                              * client_id;
 } MQTT_connect_t;
 
 /****************************************************************************************
- * @brief state and data handling function pointers                                     *
+ * @section state and data handling function pointers                                   *
  * Following function pointers are used with connection and subscribe functionalities.  *
  ****************************************************************************************/
 typedef void (*connected_fptr_t)(MQTTErrorCodes_t a_status);
 
-typedef void (*subscrbe_fptr_t)(MQTTErrorCodes_t a_status,
-                                uint8_t * a_data_ptr,
-                                uint32_t a_data_len,
-                                uint8_t * a_topic_ptr,
-                                uint16_t a_topic_len);
+typedef void (*subscrbe_fptr_t)(MQTTErrorCodes_t   a_status,
+                                uint8_t          * a_data_ptr,
+                                uint32_t           a_data_len,
+                                uint8_t          * a_topic_ptr,
+                                uint16_t           a_topic_len);
 
 
 /****************************************************************************************
- * @brief input and output function pointers                                            *
+ * @section input and output function pointers                                          *
  * Following function pointers are used to send and receive MQTT messages.              *
  * Must be implemnted.                                                                  *
  ****************************************************************************************/
@@ -198,26 +198,26 @@ typedef int (*data_stream_out_fptr_t)(uint8_t * a_data_ptr, size_t a_amount);
 
 
 /****************************************************************************************
- * @brief shared data structure.                                                        *
+ * @section shared data structure.                                                      *
  * MQTT stack uses this shared data sructure to keep its state and needed function      *
  * pointers in safe.                                                                    *
  ****************************************************************************************/
 typedef struct MQTT_shared_data
 {
-    MQTTState_t state;                    /* Connection state                           */
-    connected_fptr_t connected_cb_fptr;   /* Connected callback                         */
-    subscrbe_fptr_t subscribe_cb_fptr;    /* Subscribe callback                         */
-    uint8_t * buffer;                     /* Pointer to transmit buffer                 */
-    size_t  buffer_size;                  /* Size of transmit buffer                    */
-    data_stream_out_fptr_t out_fptr;      /* Sending out MQTT stream function pointer   */
-    uint32_t mqtt_packet_cntr;            /* MQTT packet indentifer counter             */
-    int32_t keepalive_in_ms;              /* Keepalive timer value - connect message    */
-    int32_t time_to_next_ping_in_ms;      /* Keepalive counter to track next ping       */
-	bool subscribe_status;                /* Internal subscribe status flag             */
+    MQTTState_t              state;                   /* Connection state               */
+    connected_fptr_t         connected_cb_fptr;       /* Connected callback             */
+    subscrbe_fptr_t          subscribe_cb_fptr;       /* Subscribe callback             */
+    uint8_t                * buffer;                  /* Pointer to transmit buffer     */
+    size_t                   buffer_size;             /* Size of transmit buffer        */
+    data_stream_out_fptr_t   out_fptr;                /* Sending out MQTT stream fptr   */
+    uint32_t                 mqtt_packet_cntr;        /* MQTT packet indentifer counter */
+    int32_t                  keepalive_in_ms;         /* Keepalive timer value          */
+    int32_t                  time_to_next_ping_in_ms; /* Keepalive counter              */
+    bool                     subscribe_status;        /* Internal subscribe status flag */
 } MQTT_shared_data_t;
 
 /****************************************************************************************
- * @brief MQTT action structures                                                        *
+ * @section MQTT action structures                                                      *
  * MQTT action parameter structures for different actions.                              *
  ****************************************************************************************/
 typedef struct MQTT_input_stream
@@ -229,10 +229,12 @@ typedef struct MQTT_input_stream
 typedef struct MQTT_publish
 {
     struct_flags_and_type_t flags;
-    uint8_t * topic_ptr;
-    uint16_t  topic_length;
-    uint8_t * message_buffer_ptr;
-    uint32_t  message_buffer_size;
+    uint8_t  * topic_ptr;
+    uint16_t   topic_length;
+    uint8_t  * message_buffer_ptr;
+    uint32_t   message_buffer_size;
+    uint8_t  * output_buffer_ptr;
+    uint32_t   output_buffer_size;
 } MQTT_publish_t;
 
 typedef struct MQTT_subscribe
@@ -242,24 +244,20 @@ typedef struct MQTT_subscribe
     uint16_t  topic_length;
 } MQTT_subscribe_t;
 
-
-/****************************************************************************************
- * @brief MQTT action union                                                             *
- ****************************************************************************************/
 typedef struct MQTT_action_data
 {
     union {
-        MQTT_shared_data_t * shared_ptr;
-        MQTT_connect_t * connect_ptr;
-        uint32_t epalsed_time_in_ms;
+        MQTT_shared_data_t  * shared_ptr;
+        MQTT_connect_t      * connect_ptr;
+        uint32_t              epalsed_time_in_ms;
         MQTT_input_stream_t * input_stream_ptr;
-        MQTT_publish_t * publish_ptr;
-        MQTT_subscribe_t * subscribe_ptr;
+        MQTT_publish_t      * publish_ptr;
+        MQTT_subscribe_t    * subscribe_ptr;
     } action_argument;
 } MQTT_action_data_t;
 
 /****************************************************************************************
- * @brief Debug                                                                         *
+ * @section Debug                                                                         *
  ****************************************************************************************/
 /**
  * Debug hex print
@@ -272,49 +270,45 @@ typedef struct MQTT_action_data
  */
 void hex_print(uint8_t * a_data_ptr, size_t a_size);
 
-/**
- * mqtt_printf
- *
- * printf function to print out debugging data.
- *
- */
-#define mqtt_printf printf
-
-/**
- * mqtt_memcpy
- *
- * memcpy function to copy data from source to destination.
- *
- */
-#define mqtt_memcpy memcpy
-
-/**
- * mqtt_memset
- *
- * Set given memory with specified value = memset.
- *
- */
-#define mqtt_memset memset
-
-#define mqtt_sleep sleep
-
-#define mqtt_strlen strlen
 
 /****************************************************************************************
- * @brief API                                                                           *
+ * @section API                                                                         *
  ****************************************************************************************/
 /**
- * mqtt API
+ * mqtt core API
  *
  * API function to control, send and receive MQTT messges.
+ * It uses data structures together with action parameter to request valid aciton with
+ * proper parameters.
  *
  * @param a_action [in] action type see MQTTAction_t.
  * @param a_action_ptr [in] parameters for action see MQTT_action_data_t.
  * @return None
  */
-MQTTErrorCodes_t mqtt(MQTTAction_t a_action,
+MQTTErrorCodes_t mqtt(MQTTAction_t         a_action,
                       MQTT_action_data_t * a_action_ptr);
-                      
+
+/**
+ * mqtt_connect user API
+ *
+ * Initialize software stack and create connection to requested broker.
+ *
+ * @param a_client_name_ptr [in] name of client which is connecting to broker
+ * @param a_keepalive_timeout [in] 0-x keepalive time in seconds (0=disabled).
+ * @param a_username_str_ptr [in] username string (must be null ending).
+ * @param a_password_str_ptr [in] password string (must be null ending).
+ * @param a_last_will_topic_str_ptr [in] last will topic.
+ * @param a_last_will_str_ptr [in] last will data string (must be null ending).
+ * @param mqtt_shared_data_ptr [in] @see mqtt_shared_data_ptr.
+ * @param a_output_buffer_ptr [in] common/shared output buffer.
+ * @param a_output_buffer_size [in] maximum size of output buffer.
+ * @param a_clean_session [in] is session clean or should broker restore it.
+ * @param a_out_write_fptr [in] @see data_stream_out_fptr_t.
+ * @param a_connected_fptr [in] @see connected_fptr_t.
+ * @param a_subscribe_fptr [in] @see subscrbe_fptr_t.
+ * @param a_timeout_in_sec [in] mqtt_connect timeout in seconds.
+ * @return true if successfully connected.
+ */
 bool mqtt_connect(char                   * a_client_name_ptr,
                   uint16_t                 a_keepalive_timeout,
                   uint8_t                * a_username_str_ptr,
@@ -329,19 +323,90 @@ bool mqtt_connect(char                   * a_client_name_ptr,
                   connected_fptr_t         a_connected_fptr,
                   subscrbe_fptr_t          a_subscribe_fptr,
                   uint8_t                  a_timeout_in_sec);
-                  
+				  
+/**
+ * mqtt_disconnect user API
+ *
+ * Disconnect from server
+ *
+ * @return true when disconnected was successfully sent.
+ */
 bool mqtt_disconnect();
 
+/**
+ * mqtt_publish user API
+ *
+ * Publish data to given topic
+ *
+ * @param a_topic_ptr [in] topic (all values alloved = non chars).
+ * @param a_topic_size [in] size of topic.
+ * @param a_msg_ptr [in] pointer to data which shall be published.
+ * @param a_msg_size [in] size of data to be published.
+ * @return true when publish successfully formed and sent out.
+ */
 bool mqtt_publish(char * a_topic_ptr,
                   size_t a_topic_size,
                   char * a_msg_ptr,
                   size_t a_msg_size);
+/**
+ * mqtt_publish_buf user API
+ *
+ * Publish data to given topic, using dedicated transmit buffer.
+ *
+ * @param a_topic_ptr [in] topic (all values alloved = non chars).
+ * @param a_topic_size [in] size of topic.
+ * @param a_msg_ptr [in] pointer to data which shall be published.
+ * @param a_msg_size [in] size of data to be published.
+ * @param a_output_buffer_ptr [out] ponter to transmit buffer.
+ * @param a_output_buffer_size [in] size of transmit buffer.
+ * @return true when publish successfully formed and sent out.
+ */
+bool mqtt_publish_buf(char    * a_topic_ptr,
+                      size_t    a_topic_size,
+                      char    * a_msg_ptr,
+                      size_t    a_msg_size,
+                      uint8_t * a_output_buffer_ptr,
+                      uint32_t  a_output_buffer_size);
 
-bool mqtt_subscribe(char               * a_topic,
-                    uint8_t              a_timeout_in_sec);
-
+/**
+ * mqtt_subscribe user API
+ *
+ * Subscribe given topic. Wait SUBACK from broker before returns.
+ *
+ * @param a_topic [in] topic to be subscribed.
+ * @param a_topic_size [in] size of topic.
+ * @param a_timeout_in_sec [in] timeout in seconds
+ * @return true when subscirbe succeeded.
+ */
+bool mqtt_subscribe(char    * a_topic,
+                    uint16_t  a_topic_size,
+                    uint8_t   a_timeout_in_sec);
+					
+/**
+ * mqtt_keepalive user API
+ *
+ * Call reqularly to check if keepalive must be sent.
+ * Function will send keepalive to broker based on 
+ * mqtt_connect keepalive parameters.
+ *
+ * @param a_topic [in] topic to be subscribed.
+ * @param a_topic_size [in] size of topic.
+ * @param a_timeout_in_sec [in] timeout in seconds
+ * @return true when mqtt_keepalive succeeded.
+ */
 bool mqtt_keepalive(uint32_t a_duration_in_ms);
 
-bool mqtt_receive(uint8_t * a_data, size_t a_amount);
+/**
+ * mqtt_receive user API
+ *
+ * Feed received MQTT message to this function.
+ * The function will parce it for you.
+ *
+ * @param a_data [in] beginning of received MQTT message.
+ * @param a_amount [in] amount received data.
+ * @return true when message successfully interpreted.
+ */
+bool mqtt_receive(uint8_t * a_data, 
+                  size_t    a_amount);
 
 #endif /* MQTT_H */
