@@ -1450,6 +1450,8 @@ bool mqtt_connect(char                   * a_client_name_ptr,
             connect_params.client_id = (uint8_t *)a_client_name_ptr;
             connect_params.last_will_topic   = a_last_will_topic_str_ptr;
             connect_params.last_will_message = a_last_will_str_ptr;
+            connect_params.connect_flags.last_will_qos = QoS0;
+            connect_params.connect_flags.permanent_will = false;
             connect_params.username  = a_username_str_ptr;
             connect_params.password  = a_password_str_ptr;
             connect_params.keepalive = a_keepalive_timeout;

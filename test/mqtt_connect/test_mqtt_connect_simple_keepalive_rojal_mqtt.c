@@ -29,6 +29,8 @@ void test_mqtt_connect_simple_keepalive()
     connect_params.keepalive = 2;
     connect_params.connect_flags.clean_session = true;
     connect_params.connect_flags.last_will_qos  = 0;
+    connect_params.connect_flags.permanent_will = false;
+
     MQTTErrorCodes_t ret = mqtt_connect_(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
                                         &data_stream_in_fptr_,
@@ -80,6 +82,8 @@ void test_mqtt_connect_simple_keepalive_timeout()
     connect_params.keepalive = 2;
     connect_params.connect_flags.clean_session = true;
 	connect_params.connect_flags.last_will_qos  = 0;
+    connect_params.connect_flags.permanent_will = false;
+
     MQTTErrorCodes_t ret = mqtt_connect_(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
                                         &data_stream_in_fptr_,

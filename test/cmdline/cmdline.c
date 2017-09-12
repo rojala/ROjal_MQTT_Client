@@ -71,6 +71,17 @@ void ctrl_c_exit(int a_ignore) {
     subscribe_continue = 0;
 }
 
+void sleep_in_sec(int seconds)
+{
+    struct timespec ts;
+    ts.tv_sec = seconds;
+    ts.tv_nsec = 0;
+    nanosleep(&ts, NULL);
+	//nanosleep(&ts, NULL);
+	//pselect(0, NULL, NULL, NULL, &ts, NULL);
+	//thrd_sleep(&ts, NULL); // sleep 1 sec
+}
+
 int trace(const char *format, ...)
 {
     va_list args;

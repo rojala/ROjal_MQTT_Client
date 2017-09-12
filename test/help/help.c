@@ -25,7 +25,7 @@ void socket_sig_handler()
     printf("Socket signal\n");
     socket_OK_ = false;
 }
- 
+
 void asleep(int milliseconds)
 {
     struct timespec ts;
@@ -54,23 +54,11 @@ int open_mqtt_socket_()
 
     printf("MQTT server %s:%i\n", MQTT_SERVER, MQTT_PORT);
 
-#if 0
-    int tos_local = 1;
-    setsockopt(g_socket_desc, IPPROTO_TCP, IP_TOS,  &tos_local, sizeof(tos_local));
-
-    struct timeval tv;
-    tv.tv_sec = 30;  /* 30 Secs Timeout */
-    tv.tv_usec = 0;  // Not init'ing this can cause strange errors
-    setsockopt(g_socket_desc, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(struct timeval));
-
-  	int value = 0;
-	setsockopt(g_socket_desc, SOL_SOCKET,SO_REUSEADDR,&value, sizeof(int)); // https://stackoverflow.com/questions/10619952/how-to-completely-destroy-a-socket-connection-in-c
-#endif
     //Connect to remote server
     TEST_ASSERT_TRUE_MESSAGE(connect(g_socket_desc,
-        (struct sockaddr *)&server, 
+        (struct sockaddr *)&server,
         sizeof(server)
-        ) >= 0, 
+        ) >= 0,
         "MQTT Broker not running?");
 
     socket_OK_ = true;
@@ -97,7 +85,7 @@ void close_mqtt_socket_()
 	}
 	printf("Socket closed\n");
     g_socket_desc = -1;
-    socket_OK_ = false;    
+    socket_OK_ = false;
 }
 
 int data_stream_in_fptr_(uint8_t * a_data_ptr, size_t a_amount)
@@ -137,7 +125,7 @@ void connected_cb_(MQTTErrorCodes_t a_status)
     g_auto_state_connection_completed_ = true;
 }
 
-void subscrbe_cb_(MQTTErrorCodes_t a_status, 
+void subscrbe_cb_(MQTTErrorCodes_t a_status,
 				 uint8_t * a_data_ptr,
 				 uint32_t a_data_len,
 				 uint8_t * a_topic_ptr,
