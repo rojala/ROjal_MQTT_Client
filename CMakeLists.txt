@@ -8,9 +8,12 @@ include(CTest)
 
 add_definitions("-DBUILD_DEFAULT_C_LIBS=1")
 
-set(CMAKE_C_FLAGS "-std=gnu11 -Os -fno-strict-aliasing -g -Wall -W -fstack-protector-all -Wextra -ftrapv")
+set(CMAKE_C_FLAGS "-DDEBUG -std=gnu11 -O0 -fno-strict-aliasing -g -Wall -W -fstack-protector-all -Wextra -ftrapv -fstack-usage")
 
-SET(CMAKE_EXE_LINKER_FLAGS "${CMAGE_CFLAGS} -Wl,-Map=out.map")
+# No debug and size optimized
+# set(CMAKE_C_FLAGS "-DNoDEBUG -std=gnu11 -Os -g -Wall")
+
+SET(CMAKE_EXE_LINKER_FLAGS "-Wl,-Map=out.map")
 
 add_subdirectory(src)
 add_subdirectory(test)

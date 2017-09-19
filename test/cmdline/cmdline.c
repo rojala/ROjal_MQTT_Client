@@ -377,11 +377,13 @@ int main(int argc, char *argv[])
 					signal(SIGINT, ctrl_c_exit);
 					while (subscribe_continue) {
 						if ( 0 < arguments.keepalive ) {
-							sleep(arguments.keepalive); // Sleep seconds
+							sleep_in_sec(arguments.keepalive); // Sleep seconds
+							printf("keepalive...\n");
+							fflush(stdout);
 							if (subscribe_continue)
 								subscribe_continue = mqtt_keepalive(arguments.keepalive * 1000); // Update in ms
 						} else {
-							sleep(1);
+							sleep_in_sec(1);
 						}
 					}
 				} else {
