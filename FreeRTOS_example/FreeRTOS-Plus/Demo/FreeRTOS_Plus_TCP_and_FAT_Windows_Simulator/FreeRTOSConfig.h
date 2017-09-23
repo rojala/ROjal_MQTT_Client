@@ -195,7 +195,8 @@ example, on my development laptop setting configNETWORK_INTERFACE_TO_USE to 4
 results in the wired network being used, while setting
 configNETWORK_INTERFACE_TO_USE to 2 results in the wireless network being
 used. */
-#define configNETWORK_INTERFACE_TO_USE 7L //rojal
+//#define configNETWORK_INTERFACE_TO_USE 3L //rojal sp
+#define configNETWORK_INTERFACE_TO_USE 6L //rojal pc 6 or 7
 
 /* The address of an echo server that will be used by the two demo echo client
 tasks.

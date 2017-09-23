@@ -30,7 +30,7 @@
 #include <stddef.h>  // size_t
 #include <stdbool.h> // bool
 
-#define MQTT_MAX_MESSAGE_SIZE                   (0x80000000 - 1)
+#define MQTT_MAX_MESSAGE_SIZE (0x80000000 - 1)
 
 /**
  * @brief MQTT connection state
@@ -67,7 +67,7 @@ typedef enum MQTTAction
 typedef enum MQTTMessageType
 {
     INVALIDCMD = 0,
-    CONNECT = 1,
+    CONNECT    = 1,
     CONNACK,
     PUBLISH,
     PUBACK,
@@ -95,8 +95,8 @@ typedef enum MQTTErrorCodes
     NoConnection,
     AllreadyConnected,
     PingNotSend,
-    Successfull = 0,
-    InvalidVersion = 1,
+    Successfull     = 0,
+    InvalidVersion  = 1,
     InvalidIdentifier,
     ServerUnavailabe,
     BadUsernameOrPassword,
@@ -228,20 +228,20 @@ typedef struct MQTT_input_stream
 
 typedef struct MQTT_publish
 {
-    struct_flags_and_type_t flags;
-    uint8_t  * topic_ptr;
-    uint16_t   topic_length;
-    uint8_t  * message_buffer_ptr;
-    uint32_t   message_buffer_size;
-    uint8_t  * output_buffer_ptr;
-    uint32_t   output_buffer_size;
+    struct_flags_and_type_t   flags;
+    uint8_t                 * topic_ptr;
+    uint16_t                  topic_length;
+    uint8_t                 * message_buffer_ptr;
+    uint32_t                  message_buffer_size;
+    uint8_t                 * output_buffer_ptr;
+    uint32_t                  output_buffer_size;
 } MQTT_publish_t;
 
 typedef struct MQTT_subscribe
 {
-    MQTTQoSLevel_t qos;
-    uint8_t * topic_ptr;
-    uint16_t  topic_length;
+    MQTTQoSLevel_t   qos;
+    uint8_t        * topic_ptr;
+    uint16_t         topic_length;
 } MQTT_subscribe_t;
 
 typedef struct MQTT_action_data
@@ -323,7 +323,7 @@ bool mqtt_connect(char                   * a_client_name_ptr,
                   connected_fptr_t         a_connected_fptr,
                   subscrbe_fptr_t          a_subscribe_fptr,
                   uint8_t                  a_timeout_in_sec);
-				  
+
 /**
  * mqtt_disconnect user API
  *
@@ -381,12 +381,12 @@ bool mqtt_publish_buf(char    * a_topic_ptr,
 bool mqtt_subscribe(char    * a_topic,
                     uint16_t  a_topic_size,
                     uint8_t   a_timeout_in_sec);
-					
+
 /**
  * mqtt_keepalive user API
  *
  * Call reqularly to check if keepalive must be sent.
- * Function will send keepalive to broker based on 
+ * Function will send keepalive to broker based on
  * mqtt_connect keepalive parameters.
  *
  * @param a_topic [in] topic to be subscribed.
@@ -406,7 +406,7 @@ bool mqtt_keepalive(uint32_t a_duration_in_ms);
  * @param a_amount [in] amount received data.
  * @return true when message successfully interpreted.
  */
-bool mqtt_receive(uint8_t * a_data, 
+bool mqtt_receive(uint8_t * a_data,
                   size_t    a_amount);
 
 #endif /* MQTT_H */

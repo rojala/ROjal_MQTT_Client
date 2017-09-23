@@ -1,7 +1,7 @@
 include(../CMakeTestServer.txt)
 include_directories(../unity
                     ../../include
-					../socket_read_write_lib
+                    ../socket_read_write_lib
                     ../help)
 
 add_executable(prod_test_conn prod_test_connect.c prod_help.c )

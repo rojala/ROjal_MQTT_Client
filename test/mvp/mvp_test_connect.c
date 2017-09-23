@@ -8,8 +8,8 @@
 
 void mvp_test_connect()
 {
-	TEST_ASSERT_TRUE_MESSAGE(mvp_enable_(0, "JAMKtestMVP1"), "Connect failed");
-	TEST_ASSERT_TRUE_MESSAGE(mvp_disable_(), "Disconnect failed");
+    TEST_ASSERT_TRUE_MESSAGE(mvp_enable_(0, "JAMKtestMVP1"), "Connect failed");
+    TEST_ASSERT_TRUE_MESSAGE(mvp_disable_(), "Disconnect failed");
 }
 
 /****************************************************************************************
@@ -18,6 +18,6 @@ void mvp_test_connect()
 int main(void)
 {
     UnityBegin("MVP connect tests");
-	RUN_TEST(mvp_test_connect, 1);
+    RUN_TEST(mvp_test_connect, 1);
     return (UnityEnd());
 }

@@ -20,17 +20,18 @@ void test_sm_subscrbe_with_receive()
 {
     uint8_t buffer[1024];
     MQTT_shared_data_t shared;
-    
+
     TEST_ASSERT_TRUE_MESSAGE(0 < open_mqtt_socket_(), "Failed to open socket");
-    
-	shared.state = ACTION_DISCONNECT;
-    shared.buffer = buffer;
-    shared.buffer_size = sizeof(buffer);
-    shared.out_fptr = &data_stream_out_fptr_;
+
+    shared.state             = ACTION_DISCONNECT;
+    shared.buffer            = buffer;
+    shared.buffer_size       = sizeof(buffer);
+    shared.out_fptr          = &data_stream_out_fptr_;
     shared.connected_cb_fptr = &connected_cb_;
-	shared.subscribe_cb_fptr = &subscrbe_cb_;
+    shared.subscribe_cb_fptr = &subscrbe_cb_;
+
     g_auto_state_connection_completed_ = false;
-	g_auto_state_subscribe_completed_  = false;
+    g_auto_state_subscribe_completed_  = false;
 
     MQTT_action_data_t action;
     action.action_argument.shared_ptr = &shared;
@@ -38,17 +39,17 @@ void test_sm_subscrbe_with_receive()
                                   &action);
 
     MQTT_connect_t connect_params;
-	uint8_t clientid[] = "JAMKtest test_sm_subscrbe_with_receive";
-	uint8_t aparam[] = "\0";
-	
-    connect_params.client_id = clientid;
-    connect_params.last_will_topic = aparam;
-    connect_params.last_will_message = aparam;
-    connect_params.username = aparam;
-    connect_params.password = aparam;
-    connect_params.keepalive = 0;
-    connect_params.connect_flags.clean_session = true;
-	connect_params.connect_flags.last_will_qos  = 0;
+    uint8_t clientid[] = "JAMKtest test_sm_subscrbe_with_receive";
+    uint8_t aparam[]   = "\0";
+
+    connect_params.client_id                    = clientid;
+    connect_params.last_will_topic              = aparam;
+    connect_params.last_will_message            = aparam;
+    connect_params.username                     = aparam;
+    connect_params.password                     = aparam;
+    connect_params.keepalive                    = 0;
+    connect_params.connect_flags.clean_session  = true;
+    connect_params.connect_flags.last_will_qos  = 0;
     connect_params.connect_flags.permanent_will = false;
 
     action.action_argument.connect_ptr = &connect_params;
@@ -57,17 +58,7 @@ void test_sm_subscrbe_with_receive()
                  &action);
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
-#if 0
-    // Wait response and request parse for it
-    // Parse will call given callback which will set global flag to true
-    int rcv = 0;
-    while(rcv == 0) {
-		TEST_ASSERT_TRUE(socket_OK_ == true);
-        rcv = data_stream_in_fptr_(buffer, sizeof(MQTT_fixed_header_t));
-        if (rcv == 0)
-            asleep(10);
-    }
-#endif
+
     // Wait response and request parse for it
     // Parse will call given callback which will set global flag to true
     int rcv = data_stream_in_fptr_(buffer, sizeof(MQTT_fixed_header_t));
@@ -87,7 +78,7 @@ void test_sm_subscrbe_with_receive()
 
     do {
         /* Wait callback */
-		TEST_ASSERT_TRUE(socket_OK_ == true);
+        TEST_ASSERT_TRUE(socket_OK_ == true);
         asleep(1);
     } while( false == g_auto_state_connection_completed_ );
 
@@ -95,8 +86,9 @@ void test_sm_subscrbe_with_receive()
     subscribe.topic_ptr = NULL;
     subscribe.topic_length = 0;
     subscribe.qos = QoS0;
-	
-    const char topic[] = "test/msg";
+
+    /* Test with long topic name (over 256B) */
+    const char topic[] = "test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/test/msg/";
     subscribe.topic_ptr = (uint8_t*) topic;
     subscribe.topic_length = strlen(topic);
 
@@ -106,23 +98,12 @@ void test_sm_subscrbe_with_receive()
                  &action);
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
-#if 0
-    // Wait response and request parse for it
-    // Parse will call given callback which will set global flag to true
-	rcv = 0;
-    while(rcv == 0) {
-		TEST_ASSERT_TRUE(socket_OK_ == true);
-        rcv = data_stream_in_fptr_(buffer, sizeof(MQTT_fixed_header_t));
-        if (rcv == 0)
-            asleep(10);
-    }
 
-#endif
     // Wait response and request parse for it
     // Parse will call given callback which will set global flag to true
     rcv = data_stream_in_fptr_(buffer, sizeof(MQTT_fixed_header_t));
 
-	MQTT_input_stream_t input;
+    MQTT_input_stream_t input;
 
     if (0 < rcv) {
         input.data = buffer;
@@ -134,62 +115,39 @@ void test_sm_subscrbe_with_receive()
     } else {
         TEST_ASSERT(0);
     }
-#if 0
-	MQTT_input_stream_t input;
-	input.data = buffer;
-	input.size_of_data = (uint32_t)rcv;
-	action.action_argument.input_stream_ptr = &input;
 
-	state = mqtt(ACTION_PARSE_INPUT_STREAM,
-				&action);
-	TEST_ASSERT_EQUAL_INT(Successfull, state);
-#endif
+    while (false == g_auto_state_subscribe_completed_) {
+        TEST_ASSERT_TRUE(true == socket_OK_);
+        asleep(10);
+    }
 
-	while( g_auto_state_subscribe_completed_ == false) {
-		TEST_ASSERT_TRUE(socket_OK_ == true);
-		asleep(10);
-	}
+    const   char message[]      = "FooBarMessage2";
 
-	MQTT_publish_t publish;
-    publish.flags.dup = false;
-    publish.flags.retain = false;
-    publish.flags.qos = QoS0;
-
-    publish.topic_ptr = (uint8_t*) topic;
-    publish.topic_length = strlen(topic);
-
-    const   char message[] = "FooBarMessage2";
-
-    publish.message_buffer_ptr = (uint8_t*)message;
+    MQTT_publish_t publish;
+    publish.flags.dup           = false;
+    publish.flags.retain        = false;
+    publish.flags.qos           = QoS0;
+    publish.topic_ptr           = (uint8_t*) topic;
+    publish.topic_length        = strlen(topic);
+    publish.message_buffer_ptr  = (uint8_t*)message;
     publish.message_buffer_size = strlen(message);
-	
-	publish.output_buffer_ptr = NULL;
-    publish.output_buffer_size = 0;
+    publish.output_buffer_ptr   = NULL;
+    publish.output_buffer_size   = 0;
 
     hex_print((uint8_t *) publish.message_buffer_ptr, publish.message_buffer_size);
 
+    g_auto_state_subscribe_completed_ = false;
+
     action.action_argument.publish_ptr = &publish;
-
-	g_auto_state_subscribe_completed_ = false;
-
     state = mqtt(ACTION_PUBLISH,
                  &action);
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
-#if 0
-	/* wait publish to come back from broker */
-	rcv = 0;
-    while(rcv == 0) {
-        rcv = data_stream_in_fptr_(buffer, sizeof(MQTT_fixed_header_t));
-        if (rcv == 0)
-            asleep(10);
-    }
 
-#endif
-	g_auto_state_subscribe_completed_ = false;
+    g_auto_state_subscribe_completed_ = false;
     rcv = data_stream_in_fptr_(buffer, sizeof(MQTT_fixed_header_t));
 
-//	MQTT_input_stream_t input;
+    // MQTT_input_stream_t input;
 
     if (0 < rcv) {
         input.data = buffer;
@@ -202,34 +160,25 @@ void test_sm_subscrbe_with_receive()
         TEST_ASSERT(0);
     }
 
-#if 0
-	input.data = buffer;
-	input.size_of_data = (uint32_t)rcv;
-	action.action_argument.input_stream_ptr = &input;
+    TEST_ASSERT_EQUAL_INT(Successfull, state);
 
-	state = mqtt(ACTION_PARSE_INPUT_STREAM,
-				&action);
-#endif
-
-	TEST_ASSERT_EQUAL_INT(Successfull, state);
-
-	while(g_auto_state_subscribe_completed_ == false)
-		asleep(10);
+    while (false == g_auto_state_subscribe_completed_)
+        asleep(10);
 
     state = mqtt(ACTION_DISCONNECT,
                  NULL);
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
-	
-	close_mqtt_socket_();
+
+    close_mqtt_socket_();
 }
 /****************************************************************************************
  * TEST main                                                                            *
  ****************************************************************************************/
 int main(void)
-{  
+{
     UnityBegin("State Maschine PubSub");
     unsigned int tCntr = 1;
-	RUN_TEST(test_sm_subscrbe_with_receive,                 tCntr++);
+    RUN_TEST(test_sm_subscrbe_with_receive,                 tCntr++);
     return (UnityEnd());
 }

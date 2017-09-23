@@ -16,31 +16,31 @@ extern uint8_t * decode_fixed_header(uint8_t * a_input_ptr,
 void test_decode_fixed_header_size_tiny_min()
 {
     uint8_t input[] = {0x00, 0x00, 0x00};
-    size_t msgSize = 0;
+    size_t msgSize  = 0;
     TEST_ASSERT_EQUAL_PTR(&(input[2]), get_size(input, &msgSize));
-    TEST_ASSERT_EQUAL_UINT8(0, msgSize);   
+    TEST_ASSERT_EQUAL_UINT8(0, msgSize);
 }
 
 void test_decode_fixed_header_size_tiny_max()
 {
     uint8_t input[] = {0x00, 0x7F, 0x00};
-    size_t msgSize = 0;
+    size_t msgSize  = 0;
     TEST_ASSERT_EQUAL_PTR(&(input[2]), get_size(input, &msgSize));
-    TEST_ASSERT_EQUAL_UINT32(127, msgSize);   
+    TEST_ASSERT_EQUAL_UINT32(127, msgSize);
 }
 
 void test_decode_fixed_header_size_small_min()
 {
     uint8_t input[] = {0x00, 0x80, 0x01, 0x00};
-    size_t msgSize = 0;
+    size_t msgSize  = 0;
     TEST_ASSERT_EQUAL_PTR(&(input[3]), get_size(input, &msgSize));
-    TEST_ASSERT_EQUAL_UINT32(128, msgSize);   
+    TEST_ASSERT_EQUAL_UINT32(128, msgSize);
 }
 
 void test_decode_fixed_header_size_small_max()
 {
     uint8_t input[] = {0x00, 0xFF, 0x7F, 0x00};
-    size_t msgSize = 0;
+    size_t msgSize  = 0;
     TEST_ASSERT_EQUAL_PTR(&(input[3]), get_size(input, &msgSize));
     TEST_ASSERT_EQUAL_UINT32(16383, msgSize);
 }
@@ -48,7 +48,7 @@ void test_decode_fixed_header_size_small_max()
 void test_decode_fixed_header_size_big_min()
 {
     uint8_t input[] = {0x00, 0x80, 0x80, 0x01, 0x00};
-    size_t msgSize = 0;
+    size_t msgSize  = 0;
     TEST_ASSERT_EQUAL_PTR(&(input[4]), get_size(input, &msgSize));
     TEST_ASSERT_EQUAL_UINT32(16384, msgSize);
 }
@@ -56,7 +56,7 @@ void test_decode_fixed_header_size_big_min()
 void test_decode_fixed_header_size_big_max()
 {
     uint8_t input[] = {0x00, 0xFF, 0xFF, 0x7F, 0x00};
-    size_t msgSize = 0;
+    size_t msgSize  = 0;
     TEST_ASSERT_EQUAL_PTR(&(input[4]), get_size(input, &msgSize));
     TEST_ASSERT_EQUAL_UINT32(2097151, msgSize);
 }
@@ -64,7 +64,7 @@ void test_decode_fixed_header_size_big_max()
 void test_decode_fixed_header_size_large_min()
 {
     uint8_t input[] = {0x00, 0x80, 0x80, 0x80, 0x01, 0x00};
-    size_t msgSize = 0;
+    size_t msgSize  = 0;
     TEST_ASSERT_EQUAL_PTR(&(input[5]), get_size(input, &msgSize));
     TEST_ASSERT_EQUAL_UINT32(2097152, msgSize);
 }
@@ -72,7 +72,7 @@ void test_decode_fixed_header_size_large_min()
 void test_decode_fixed_header_size_large_max()
 {
     uint8_t input[] = {0x00, 0xFF, 0xFF, 0xFF, 0x7F, 0x00};
-    size_t msgSize = 0;
+    size_t msgSize  = 0;
     TEST_ASSERT_EQUAL_PTR(&(input[5]), get_size(input, &msgSize));
     TEST_ASSERT_EQUAL_UINT32(268435455, msgSize);
 }
@@ -80,7 +80,7 @@ void test_decode_fixed_header_size_large_max()
 void test_decode_fixed_header_size_too_big()
 {
     uint8_t input[] = {0x00, 0xFF, 0xFF, 0xFF, 0x80, 0x01, 0x00};
-    size_t msgSize = 0;
+    size_t msgSize  = 0;
     TEST_ASSERT_EQUAL_PTR(NULL, get_size(input, &msgSize));
     TEST_ASSERT_EQUAL_UINT32(0, msgSize);
 }
@@ -91,12 +91,12 @@ void test_decode_fixed_header_size_too_big()
 void test_decode_fixed_header_all_zeros()
 {
     /* Thest that fixed header with all zeros is really 0x0000 */
-    uint8_t input[] = {0x00, 0x00, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0x00, 0x00, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xF;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[2]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00000000, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -107,12 +107,12 @@ void test_decode_fixed_header_all_zeros()
 
 void test_decode_fixed_header_with_dub_set()
 {
-    uint8_t input[] = {0x02, 0x00, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0x02, 0x00, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xF;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[2]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00000000, size);
     TEST_ASSERT_EQUAL_HEX8(0x01, dup);
@@ -123,12 +123,12 @@ void test_decode_fixed_header_with_dub_set()
 
 void test_decode_fixed_header_with_qos1()
 {
-    uint8_t input[] = {0x04, 0x00, 0x00};
-    bool dup = 0;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0x04, 0x00, 0x00};
+    bool dup               = 0;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xF;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[2]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00000000, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -139,12 +139,12 @@ void test_decode_fixed_header_with_qos1()
 
 void test_decode_fixed_header_with_qos2()
 {
-    uint8_t input[] = {0x08, 0x00, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0x08, 0x00, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xF;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[2]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00000000, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -155,12 +155,12 @@ void test_decode_fixed_header_with_qos2()
 
 void test_decode_fixed_header_with_retain_set()
 {
-    uint8_t input[] = {0x01, 0x00, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 0;
+    uint8_t input[]        = {0x01, 0x00, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 0;
     MQTTMessageType_t type = 0xF;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[2]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00000000, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -171,12 +171,12 @@ void test_decode_fixed_header_with_retain_set()
 
 void test_decode_fixed_header_with_first_command()
 {
-    uint8_t input[] = {0x10, 0x00, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0x10, 0x00, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xF;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[2]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00000000, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -187,12 +187,12 @@ void test_decode_fixed_header_with_first_command()
 
 void test_decode_fixed_header_with_last_command()
 {
-    uint8_t input[] = {0xE0, 0x00, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0xE0, 0x00, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xE;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[2]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00000000, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -203,12 +203,12 @@ void test_decode_fixed_header_with_last_command()
 
 void test_decode_fixed_header_with_tiny_message()
 {
-    uint8_t input[] = {0x00, 0x7F, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0x00, 0x7F, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xE;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[2]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x0000007F, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -219,12 +219,12 @@ void test_decode_fixed_header_with_tiny_message()
 
 void test_decode_fixed_header_with_small_message()
 {
-    uint8_t input[] = {0x00, 0x82, 0x01, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0x00, 0x82, 0x01, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xE;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[3]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00000082, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -235,12 +235,12 @@ void test_decode_fixed_header_with_small_message()
 
 void test_decode_fixed_header_with_big_message()
 {
-    uint8_t input[] = {0x00, 0x82, 0x80, 0x01, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0x00, 0x82, 0x80, 0x01, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xE;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[4]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00004002, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -251,12 +251,12 @@ void test_decode_fixed_header_with_big_message()
 
 void test_decode_fixed_header_with_large_message()
 {
-    uint8_t input[] = {0x00, 0x82, 0x80, 0x80, 0x01, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0x00, 0x82, 0x80, 0x80, 0x01, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xE;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(&(input[5]), decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00200002, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -267,12 +267,12 @@ void test_decode_fixed_header_with_large_message()
 
 void test_decode_fixed_header_with_too_big_message()
 {
-    uint8_t input[] = {0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00};
-    bool dup = 1;
-    MQTTQoSLevel_t qos = 2;
-    bool retain = 1;
+    uint8_t input[]        = {0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00};
+    bool dup               = 1;
+    MQTTQoSLevel_t qos     = 2;
+    bool retain            = 1;
     MQTTMessageType_t type = 0xE;
-    uint32_t size = 19;
+    uint32_t size          = 19;
     TEST_ASSERT_EQUAL_PTR(NULL, decode_fixed_header(input, &dup, &qos, &retain, &type, &size));
     TEST_ASSERT_EQUAL_HEX32(0x00000000, size);
     TEST_ASSERT_EQUAL_HEX8(0x00, dup);
@@ -285,7 +285,7 @@ void test_decode_fixed_header_with_too_big_message()
  * TEST main                                                                            *
  ****************************************************************************************/
 int main(void)
-{  
+{
     UnityBegin("Decode fixed header");
     unsigned int tCntr = 1;
 

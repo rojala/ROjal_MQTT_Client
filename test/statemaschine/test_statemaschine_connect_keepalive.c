@@ -32,16 +32,16 @@ void test_sm_connect_auto_ack_keepalive()
                                   &action);
 
     MQTT_connect_t connect_params;
-	uint8_t clientid[] = "JAMKtest test_sm_connect_auto_ack_keepalive";
-	uint8_t aparam[] = "\0";
+    uint8_t clientid[] = "JAMKtest test_sm_connect_auto_ack_keepalive";
+    uint8_t aparam[]   = "\0";
 
-    connect_params.client_id = clientid;
-    connect_params.last_will_topic = aparam;
-    connect_params.last_will_message = aparam;
-    connect_params.username = aparam;
-    connect_params.password = aparam;
-    connect_params.keepalive = 2;
-    connect_params.connect_flags.clean_session = true;
+    connect_params.client_id                    = clientid;
+    connect_params.last_will_topic              = aparam;
+    connect_params.last_will_message            = aparam;
+    connect_params.username                     = aparam;
+    connect_params.password                     = aparam;
+    connect_params.keepalive                    = 2;
+    connect_params.connect_flags.clean_session  = true;
     connect_params.connect_flags.last_will_qos  = 0;
     connect_params.connect_flags.permanent_will = false;
 
@@ -52,7 +52,7 @@ void test_sm_connect_auto_ack_keepalive()
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
 
-	asleep(10);
+    asleep(10);
     // Wait response and request parse for it
     // Parse will call given callback which will set global flag to true
     int rcv = data_stream_in_fptr_(buffer, sizeof(MQTT_fixed_header_t));
@@ -76,6 +76,7 @@ void test_sm_connect_auto_ack_keepalive()
     MQTT_action_data_t ap;
     ap.action_argument.epalsed_time_in_ms = 500;
     state = mqtt(ACTION_KEEPALIVE, &ap);
+
     printf("Keepalive cmd status %i\n", state);
     ap.action_argument.epalsed_time_in_ms = 500;
 
@@ -100,28 +101,28 @@ void test_sm_connect_auto_ack_keepalive()
                 //TEST_ASSERT(0);
             }
         }
-        
+
         printf("sleeping..\n");
         asleep(300); // 100ms safe guard because given time is at least time...
         printf("slept\n");
         state = mqtt(ACTION_KEEPALIVE, &ap);
         //TEST_ASSERT_EQUAL_INT(Successfull, state);
-        
+
     }
     state = mqtt(ACTION_DISCONNECT,
                  NULL);
 
     TEST_ASSERT_EQUAL_INT(Successfull, state);
 
-	close_mqtt_socket_();
+    close_mqtt_socket_();
 }
 /****************************************************************************************
  * TEST main                                                                            *
  ****************************************************************************************/
 int main(void)
-{  
+{
     UnityBegin("State Maschine keepalive");
     unsigned int tCntr = 1;
-	RUN_TEST(test_sm_connect_auto_ack_keepalive,            tCntr++);
+    RUN_TEST(test_sm_connect_auto_ack_keepalive,            tCntr++);
     return (UnityEnd());
 }

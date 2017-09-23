@@ -17,19 +17,19 @@ void test_mqtt_connect_simple()
 
     uint8_t mqtt_raw_buffer[1024];
     MQTT_connect_t connect_params;
-    
-	uint8_t clientid[] = "JAMKtest test_mqtt_connect_simple";
-	uint8_t aparam[] = "\0";
-	
-    connect_params.client_id = clientid;
-    connect_params.last_will_topic = aparam;
-    connect_params.last_will_message = aparam;
-    connect_params.username = aparam;
-    connect_params.password = aparam;
-    connect_params.keepalive = 0;
-    connect_params.connect_flags.clean_session = true;
+
+    uint8_t clientid[] = "JAMKtest test_mqtt_connect_simple";
+    uint8_t aparam[]   = "\0";
+
+    connect_params.client_id                    = clientid;
+    connect_params.last_will_topic              = aparam;
+    connect_params.last_will_message            = aparam;
+    connect_params.username                     = aparam;
+    connect_params.password                     = aparam;
+    connect_params.keepalive                    = 0;
+    connect_params.connect_flags.clean_session  = true;
     connect_params.connect_flags.permanent_will = false;
-	connect_params.connect_flags.last_will_qos  = 0;
+    connect_params.connect_flags.last_will_qos  = 0;
     MQTTErrorCodes_t ret = mqtt_connect_(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
                                         &data_stream_in_fptr_,
@@ -44,7 +44,7 @@ void test_mqtt_connect_simple()
     TEST_ASSERT_FALSE_MESSAGE(send(g_socket_desc, mqtt_raw_buffer, sizeOfFixedHdr, 0) < 0, "Send failed");
 
     // Close socket
-	close_mqtt_socket_();
+    close_mqtt_socket_();
 }
 
 void test_mqtt_connect_simple_username_and_password()
@@ -55,21 +55,21 @@ void test_mqtt_connect_simple_username_and_password()
 
     uint8_t mqtt_raw_buffer[1024];
     MQTT_connect_t connect_params;
-    
-	uint8_t clientid[] = "JAMKtest test_mqtt_connect_simple_username_and_password";
-	uint8_t aparam[] = "\0";
-	uint8_t ausername[] = "aUsername";
-	uint8_t apassword[] = "aPassword";
-	
-    connect_params.client_id = clientid;
-    connect_params.last_will_topic = aparam;
-    connect_params.last_will_message = aparam;
-    connect_params.username = ausername;
-    connect_params.password = apassword;
-    connect_params.keepalive = 0;
+
+    uint8_t clientid[]  = "JAMKtest test_mqtt_connect_simple_username_and_password";
+    uint8_t aparam[]    = "\0";
+    uint8_t ausername[] = "aUsername";
+    uint8_t apassword[] = "aPassword";
+
+    connect_params.client_id                    = clientid;
+    connect_params.last_will_topic              = aparam;
+    connect_params.last_will_message            = aparam;
+    connect_params.username                     = ausername;
+    connect_params.password                     = apassword;
+    connect_params.keepalive                    = 0;
     connect_params.connect_flags.clean_session  = true;
     connect_params.connect_flags.permanent_will = false;
-	connect_params.connect_flags.last_will_qos  = 0;
+    connect_params.connect_flags.last_will_qos  = 0;
     MQTTErrorCodes_t ret = mqtt_connect_(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
                                         &data_stream_in_fptr_,
@@ -84,7 +84,7 @@ void test_mqtt_connect_simple_username_and_password()
     TEST_ASSERT_FALSE_MESSAGE(send(g_socket_desc, mqtt_raw_buffer, sizeOfFixedHdr, 0) < 0, "Send failed");
 
     // Close socket
-	close_mqtt_socket_();
+    close_mqtt_socket_();
 }
 
 void test_mqtt_connect_simple_all_details()
@@ -95,24 +95,24 @@ void test_mqtt_connect_simple_all_details()
 
     uint8_t mqtt_raw_buffer[1024];
     MQTT_connect_t connect_params;
-    
-	uint8_t clientid[] = "JAMKtest test_mqtt_connect_simple_all_details";
 
-	uint8_t ausername[] = "aUsername";
-	uint8_t apassword[] = "aPassword";
-	uint8_t alwt[] = "/IoT/device/state";
-	uint8_t alwm[] = "Offline";
-	
-    connect_params.client_id = clientid;
-    connect_params.last_will_topic = alwt;
+    uint8_t clientid[]  = "JAMKtest test_mqtt_connect_simple_all_details";
+
+    uint8_t ausername[] = "aUsername";
+    uint8_t apassword[] = "aPassword";
+    uint8_t alwt[]      = "/IoT/device/state";
+    uint8_t alwm[]      = "Offline";
+
+    connect_params.client_id         = clientid;
+    connect_params.last_will_topic   = alwt;
     connect_params.last_will_message = alwm;
-    connect_params.username = ausername;
-    connect_params.password = apassword;
+    connect_params.username          = ausername;
+    connect_params.password          = apassword;
 
-    connect_params.keepalive = 60;
-    connect_params.connect_flags.clean_session = true;
+    connect_params.keepalive                    = 60;
+    connect_params.connect_flags.clean_session  = true;
     connect_params.connect_flags.permanent_will = false;
-	connect_params.connect_flags.last_will_qos  = 0;
+    connect_params.connect_flags.last_will_qos  = 0;
     MQTTErrorCodes_t ret = mqtt_connect_(mqtt_raw_buffer,
                                         sizeof(mqtt_raw_buffer),
                                         &data_stream_in_fptr_,
@@ -126,20 +126,20 @@ void test_mqtt_connect_simple_all_details()
     TEST_ASSERT_TRUE(mqtt_disconnect(&data_stream_out_fptr_) == Successfull);
 
     // Close socket
-	close_mqtt_socket_();
+    close_mqtt_socket_();
 }
 
 /****************************************************************************************
  * TEST main                                                                            *
  ****************************************************************************************/
 int main(void)
-{  
+{
     UnityBegin("MQTT connect simple");
     unsigned int tCntr = 1;
 
     /* CONNACK */
     RUN_TEST(test_mqtt_connect_simple,                          tCntr++);
-    RUN_TEST(test_mqtt_connect_simple_username_and_password,    tCntr++); 
+    RUN_TEST(test_mqtt_connect_simple_username_and_password,    tCntr++);
     RUN_TEST(test_mqtt_connect_simple_all_details,              tCntr++);
     return (UnityEnd());
 }

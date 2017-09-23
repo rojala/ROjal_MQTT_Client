@@ -2,6 +2,10 @@
 #define MQTT_ADAPTATION_H
 
 #ifdef BUILD_DEFAULT_C_LIBS
+/*******************************************************************************************************************
+ * Linux build env Linux build env Linux build env Linux build env Linux build env Linux build env Linux build env *
+ *******************************************************************************************************************/
+
 #include <unistd.h>  // sleep
 #include <stdio.h>   // printf
 #include <string.h>  // memcpy, strlen
@@ -37,6 +41,9 @@
 #endif /* BUILD_DEFAULT_C_LIBS */
 
 #ifdef BUILD_FREERTOS
+/*******************************************************************************************************************
+ *   FreeRTOS FreeRTOS FreeRTOS FreeRTOS FreeRTOS FreeRTOS FreeRTOS FreeRTOS FreeRTOS FreeRTOS FreeRTOS FreeRTOS   *
+ *******************************************************************************************************************/
 
 /* Standard includes. */
 #include <stdint.h>
@@ -55,13 +62,12 @@
 
 #define FREERTOS_MQTT_PORT 1883
 
-#if 1
+#if 0
 /* test.mosquitto.org IP address */
 #define FREERTOS_MQTT_ADDR1 37
 #define FREERTOS_MQTT_ADDR2 187
 #define FREERTOS_MQTT_ADDR3 106
 #define FREERTOS_MQTT_ADDR4 16
-
 #else
 #define FREERTOS_MQTT_ADDR1 192
 #define FREERTOS_MQTT_ADDR2 168
@@ -69,7 +75,7 @@
 #define FREERTOS_MQTT_ADDR4 201
 #endif
 
-#define FREERTOS_CLIENT_ID "FreeRTOS"
+#define FREERTOS_CLIENT_ID "FreeRTOS_ROjal_MQTT_Client"
 
 #define FREERTOS_MAX_MQTT_SIZE 1024
 

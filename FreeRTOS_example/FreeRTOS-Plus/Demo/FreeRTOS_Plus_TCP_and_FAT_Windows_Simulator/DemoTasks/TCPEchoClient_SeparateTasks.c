@@ -140,7 +140,7 @@ int32_t lShuttingDown = pdFALSE;
 
 static MQTT_shared_data_t mqtt_shared_data;
 static uint8_t a_output_buffer[1024]; /* Shared buffer */
-static Socket_t xSocket = -1;
+static Socket_t xSocket = FREERTOS_INVALID_SOCKET;
 
 static const uint32_t gKeepAliveTime = 60000; // in milliseconds
 
@@ -234,7 +234,7 @@ void socket_write(uint8_t * a_data_ptr, size_t a_amount)
 		{
 			/* Error - close the socket. */
 			FreeRTOS_printf(("Socket off\r\n"));
-			xSocket = -1;
+			xSocket = FREERTOS_INVALID_SOCKET;
 			lShuttingDown = pdTRUE;
 			break;
 		}
@@ -246,7 +246,7 @@ void socket_write(uint8_t * a_data_ptr, size_t a_amount)
 		socket. */
 		FreeRTOS_printf(("Socket error\r\n"));
 		lShuttingDown = pdTRUE;
-		xSocket = -1;
+		xSocket = FREERTOS_INVALID_SOCKET;
 	}
 }
 
@@ -321,7 +321,7 @@ static void prvConnectTask(void *pvParameters)
 								  "online",
 								  7);
 
-					while (xSocket) {
+					while (xSocket!= FREERTOS_INVALID_SOCKET) {
 						vTaskDelay(100 / portTICK_PERIOD_MS);
 					}
 				}
@@ -331,7 +331,7 @@ static void prvConnectTask(void *pvParameters)
 				}
 			}
 
-			xSocket = -1;
+			xSocket = FREERTOS_INVALID_SOCKET;
 
 			/* Inform the other task that is using the same socket that this
 			task is waiting to shut the socket. */
@@ -343,6 +343,8 @@ static void prvConnectTask(void *pvParameters)
 			/* The Rx task is no longer using the socket so the socket can be
 			closed. */
 			FreeRTOS_closesocket(xSocket);
+
+			vTaskDelay(5000 / portTICK_PERIOD_MS);
 	}
 }
 /*-----------------------------------------------------------*/
@@ -373,7 +375,7 @@ int32_t get_remainingsize(uint8_t * a_input_ptr)
 static void prvReceiveTask( void *pvParameters )
 {
 BaseType_t lReceived, lReturned = 0;
-Socket_t xSocketTmp = -1;
+Socket_t xSocketTmp = FREERTOS_INVALID_SOCKET;
 	( void ) pvParameters;
 
 	for( ;; )
@@ -381,7 +383,7 @@ Socket_t xSocketTmp = -1;
 		/* Wait to receive the socket that will be used from the Tx task. */
 		xQueueReceive( xSocketPassingQueue, &xSocketTmp, portMAX_DELAY );
 
-		while ((xSocketTmp > 0) &&
+		while ((xSocketTmp != FREERTOS_INVALID_SOCKET) &&
 				(pdFALSE == lShuttingDown)) {
 
 			char header[32] = { 0 };
@@ -407,7 +409,7 @@ Socket_t xSocketTmp = -1;
 					mqtt_receive((uint8_t*)header, (uint32_t)bytes_read);
 				}
 			} else if (0 > bytes_read) {
-				xSocket = -1;
+				xSocket = FREERTOS_INVALID_SOCKET;
 				lShuttingDown = pdTRUE;
 			}
 		} // Loop forewer
@@ -417,7 +419,7 @@ Socket_t xSocketTmp = -1;
 
 static void prvAliveTask(void *pvParameters)
 {
-	Socket_t xSocketTmp = -1;
+	Socket_t xSocketTmp = FREERTOS_INVALID_SOCKET;
 	(void)pvParameters;
 
 	for (;; )
@@ -429,7 +431,11 @@ static void prvAliveTask(void *pvParameters)
 			for (;; ) {
 				vTaskDelay((gKeepAliveTime/2) / portTICK_PERIOD_MS); // Divided by 2, because of windows inaccurate ticks
 				FreeRTOS_printf(("MQTT WD Feed\r\n"));
-				mqtt_keepalive(gKeepAliveTime/4*3);
+				if (false == mqtt_keepalive(gKeepAliveTime / 4 * 3)) {
+					xSocketTmp = FREERTOS_INVALID_SOCKET;
+					lShuttingDown = pdTRUE;
+					break;
+				}
 			}
 		}
 	}
@@ -437,7 +443,7 @@ static void prvAliveTask(void *pvParameters)
 
 static void prvPublishTask(void *pvParameters)
 {
-	Socket_t xSocketTmp = -1;
+	Socket_t xSocketTmp = FREERTOS_INVALID_SOCKET;
 	(void)pvParameters;
 
 	for (;; )
@@ -448,12 +454,16 @@ static void prvPublishTask(void *pvParameters)
 		for (;;) {
 			uint32_t cntr = xTaskGetTickCount();
 			vTaskDelay( 1000 / portTICK_PERIOD_MS); // Divided by 2, because of windows inaccurate ticks
-			FreeRTOS_printf(("MQTT WD Feed\r\n"));
+			FreeRTOS_printf(("MQTT Publish Lampotila\r\n"));
 
-			mqtt_publish(topic,
-						 sizeof(topic)-1, // Do not count null into the length
-				         &cntr,
-						 sizeof(cntr));
+			if (false == mqtt_publish(topic,
+									  sizeof(topic) - 1, // Do not count null into the length
+									  &cntr,
+									  sizeof(cntr))){
+				xSocketTmp = FREERTOS_INVALID_SOCKET;
+				lShuttingDown = pdTRUE;
+				break;
+			}
 		}
 	}
 }

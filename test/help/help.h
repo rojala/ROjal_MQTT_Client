@@ -18,10 +18,10 @@ int data_stream_out_fptr_(uint8_t * a_data_ptr, size_t a_amount);
 int data_stream_in_fptr_(uint8_t * a_data_ptr, size_t a_amount);
 
 void subscrbe_cb_(MQTTErrorCodes_t a_status,
-				 uint8_t * a_data_ptr,
-				 uint32_t a_data_len,
-				 uint8_t * a_topic_ptr,
-				 uint16_t a_topic_len);
+                 uint8_t * a_data_ptr,
+                 uint32_t a_data_len,
+                 uint8_t * a_topic_ptr,
+                 uint16_t a_topic_len);
 
 void connected_cb_(MQTTErrorCodes_t a_status);
 
