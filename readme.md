@@ -5,6 +5,7 @@ uses TCP socket, but socket can be replased by any other session mechanism.
 
 # License
 Copyright 2017 Rami Ojala / JAMK (K5643)
+
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in the
 Software without restriction, including without limitation the rights to use, copy,
@@ -36,7 +37,8 @@ Linux with cmake and gcc.
 * export MQTT_SERVER=123.456.789.000
 * export MQTT_PORT=1883
 
-Above variables are used with test codes only (ctest).
+Above variables are used with test codes only (ctest). Defining valid broker (e.g. mosquitto),
+makes it possible to run unit and systemtests.
 
 ### Create build directory and compile
 * mkdir build
