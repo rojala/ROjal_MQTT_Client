@@ -3,6 +3,8 @@ ROjal_MQTT is MQTT 3.1.1 compliant client. Is support only QoS0 quality level.
 It is intened to work in different type of IoT devices. Test codes and examples
 uses TCP socket, but socket can be replased by any other session mechanism.
 
+The stack is outcome of JAMK IoT and Cyber security BCs thesis http://www.theseus.fi/handle/TBD...
+
 # License
 Copyright 2017 Rami Ojala / JAMK (K5643)
 
@@ -45,7 +47,8 @@ makes it possible to run unit and systemtests.
 * cd build
 * cmake ..
 * make -j 4
-or in single line
+
+or in single line:
 * mkdir build; cd build; cmake ..; make -j 4
 
 ### Test functionality
