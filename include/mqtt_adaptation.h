@@ -62,7 +62,7 @@
 
 #define FREERTOS_MQTT_PORT 1883
 
-#if 0
+#if 1
 /* test.mosquitto.org IP address */
 #define FREERTOS_MQTT_ADDR1 37
 #define FREERTOS_MQTT_ADDR2 187
