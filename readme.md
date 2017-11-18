@@ -3,7 +3,9 @@ ROjal_MQTT is MQTT 3.1.1 compliant client. Is support only QoS0 quality level.
 It is intened to work in different type of IoT devices. Test codes and examples
 uses TCP socket, but socket can be replased by any other session mechanism.
 
-The stack is outcome of JAMK IoT and Cyber security BCs thesis http://www.theseus.fi/handle/TBD...
+Doxygen source code documentation available [here](https://codedocs.xyz/rojala/ROjal_MQTT_Client/index.html)
+
+The stack is outcome of JAMK IoT and Cyber security BCs thesis - [publication](https://www.theseus.fi/discover?scope=%2F&query=&submit=&filtertype_0=author&filter_relational_operator_0=equals&filter_0=Ojala%2C+Rami&rpp=10)
 
 # License
 Copyright 2017 Rami Ojala / JAMK (K5643)
@@ -28,7 +30,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 https://opensource.org/licenses/MIT
 
 # API
-See include/mqtt.h file for details.
+See include/mqtt.h file or [Doxygen/CodeDocs](https://codedocs.xyz/rojala/ROjal_MQTT_Client/files.html) for details.
 
 # How to build
 ## Environment and tools
