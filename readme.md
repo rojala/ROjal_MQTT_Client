@@ -5,7 +5,7 @@ uses TCP socket, but socket can be replased by any other session mechanism.
 
 Doxygen source code documentation available [here](https://codedocs.xyz/rojala/ROjal_MQTT_Client/index.html)
 
-The stack is outcome of JAMK IoT and Cyber security BCs thesis - [publication](https://www.theseus.fi/discover?scope=%2F&query=&submit=&filtertype_0=author&filter_relational_operator_0=equals&filter_0=Ojala%2C+Rami&rpp=10)
+The stack is outcome of JAMK IoT and Cyber security BCs thesis - [publication](http://www.urn.fi/URN:NBN:fi:amk-2017121821866)
 
 # License
 Copyright 2017 Rami Ojala / JAMK (K5643)
